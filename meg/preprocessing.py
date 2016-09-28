@@ -18,6 +18,7 @@ This leads to the following design:
 '''
 
 import mne
+import numpy as np
 import pandas as pd
 from meg.tools import hilbert
 from meg import artifacts
@@ -32,17 +33,18 @@ def get_trial_periods(events, trial_start, trial_end):
     '''
     Parse trial start and end times from events.
     '''
+
     start = [0,0,]
     end = [0,]
     if not len(start) == len(end):
         dif = len(start)-len(end)
-        start = where(events[:,2] == trial_start)[0]
-        end = where(events[:, 2] == trial_end)[0]
+        start = np.where(events[:,2] == trial_start)[0]
+        end = np.where(events[:, 2] == trial_end)[0]
 
         # Aborted block during a trial, find location where [start ... start end] occurs
         i_start, i_end = 0, 0   # i_start points to the beginning of the current
                                 # trial and i_end to the beginning of the current trial.
-
+        print len(start), len(end)
         if not (len(start) == len(end)):
             # Handle this condition by looking for the closest start to each end.
             id_keep = (0*events[:,0]).astype(bool)
@@ -51,23 +53,23 @@ def get_trial_periods(events, trial_start, trial_end):
 
             for i, e in enumerate(end_times):
                 d = start_times-e
-                d[d>0] = -inf
-                matching_start = argmax(d)
+                d[d>0] = -np.inf
+                matching_start = np.argmax(d)
                 evstart = start[matching_start]
 
                 if (trial_end in events[evstart-10:evstart, 2]):
-                    prev_end = 10-where(events[evstart-10:evstart, 2]==trial_end)[0][0]
+                    prev_end = 10-np.where(events[evstart-10:evstart, 2]==trial_end)[0][0]
                     id_keep[(start[matching_start]-prev_end+1):end[i]+1] = True
                 else:
                     id_keep[(start[matching_start]-10):end[i]+1] = True
             events = events[id_keep,:]
 
-        start = where(events[:,2] == trial_start)[0]
-        end = where(events[:, 2] == trial_end)[0]
+        start = np.where(events[:,2] == trial_start)[0]
+        end = np.where(events[:, 2] == trial_end)[0]
     return start, end
 
 
-def get_meta(raw, mapping, pins):
+def get_meta(raw, mapping, pins, trial_start, trial_end):
     '''
     Parse block structure from events in MEG files.
 
@@ -84,26 +86,31 @@ def get_meta(raw, mapping, pins):
             trial = sum([2**(8-pin) for pin in pins])
         return trial
 
-    events, _ = get_events_from_file(raw.info['filename'])
+    events, _ = get_events(raw)
     events = events.astype(float)
-    start, end = get_trial_periods(events, trial_start, trial_end)
+    if trial_start == trial_end:
+        start = np.where(events[:,2] == trial_start)[0]
+        end = np.where(events[:, 2] == trial_end)[0]
+        start, end = start[:-1], end[1:]
+    else:
+        start, end = get_trial_periods(events, trial_start, trial_end)
 
     trials = []
     for i, (ts, te) in enumerate(zip(start, end)):
         current_trial = {}
-        trial_nums = events[ts:ts, 2]
-        trial_times = events[ts:ts, 0]
+        trial_nums = events[ts:te, 2]
+        trial_times = events[ts:te, 0]
         if pins:
             # Find any pins that need special treatment, parse them and remove
             # triggers from trial_nums
             for key, value in pins.iteritems():
                 if key in trial_nums:
-                    pstart = where(trial_nums==key)[0]
-                    pend = pstart + where(trial_nums[pstart:]>8)[0]
+                    pstart = np.where(trial_nums==key)[0][0]+1
+                    pend = pstart + np.where(trial_nums[pstart:]>8)[0][0] + 1
                     pvals = trial_nums[pstart:pend]
                     current_trial[value] = pins2num(pvals)
-                    trial_nums = trial_nums[:pstart][pend-pstart,:]
-                    trial_times = trial_times[:pstart][pend-pstart,:]
+                    trial_nums = np.concatenate((trial_nums[:pstart], trial_nums[pend:]))
+                    trial_times = np.concatenate((trial_times[:pstart], trial_times[pend:]))
 
         for trigger, time in zip(trial_nums, trial_times):
             if trigger in mapping.keys():
@@ -112,14 +119,20 @@ def get_meta(raw, mapping, pins):
             else:
                 current_trial[trigger] = time
         trials.append(current_trial)
-    return trials
+
+    meta = pd.DataFrame(trials)
+    time_fields = [c for c in meta if str(c).endswith('_time')]
+    meta_fields = [c for c in meta if not str(c).endswith('_time')]
+    return meta.loc[:, meta_fields], meta.loc[:, time_fields]
 
 
-def preprocess_block(raw):
+def preprocess_block(raw, blinks=True):
     '''
     Apply artifact detection to a block of data.
     '''
-    ab = artifacts.annotate_blinks(raw)
+    ab = None
+    if blinks:
+        ab = artifacts.annotate_blinks(raw)
     am, zm = artifacts.annotate_muscle(raw)
     ac, zc, d = artifacts.annotate_cars(raw)
     ar, zj = artifacts.annotate_jumps(raw)
@@ -128,6 +141,13 @@ def preprocess_block(raw):
     raw.annotations = ants
     artdef = {'muscle':zm, 'cars':(zc, d), 'jumps':zj}
     return raw, ants, artdef
+
+
+def mne_events(data, time_field, event_val):
+    return np.vstack([
+        data[time_field].values,
+        0*data[time_field].values,
+        data[event_val].values]).astype(int).T
 
 
 def get_epoch(raw, meta, timing,
@@ -148,8 +168,12 @@ def get_epoch(raw, meta, timing,
     epoch_label : Column in meta that contains epoch labels.
     '''
     joined_meta = pd.concat([meta, timing], axis=1)
-    ev = metadata.mne_events(joined_meta, event, epoch_label)
-    eb = metadata.mne_events(joined_meta, base_event, epoch_label)
+
+    ev = mne_events(joined_meta, event, epoch_label)
+    eb = mne_events(joined_meta, base_event, epoch_label)
+
+    print eb
+
     picks = mne.pick_types(raw.info, meg=True, eeg=False, stim=False, eog=False, exclude='bads')
 
     base = mne.Epochs(raw, eb, tmin=base_time[0], tmax=base_time[1], baseline=None, picks=picks,
@@ -161,7 +185,7 @@ def get_epoch(raw, meta, timing,
     stim_period, dl = apply_baseline(stim_period, base)
     # Now filter raw object to only those left.
     sei = stim_period.events[:, 2]
-    meta = meta.reset_index().set_index('hash').loc[sei]
+    meta = meta.reset_index().set_index(epoch_label).loc[sei]
     return meta, stim_period
 
 
@@ -187,13 +211,13 @@ def apply_baseline(epochs, baseline):
     drop_list = []
     for epoch, orig in enumerate(epochs.selection):
         # Find baseline epoch for this.
-        base = where(baseline.selection==orig)[0]
+        base = np.where(baseline.selection==orig)[0]
         if len(base) == 0:
             # Reject this one.
             drop_list.append(epoch)
         else:
-            base_val = squeeze(baseline._data[base, :, :]).mean(1)
-            epochs._data[epoch, :, :] -= base_val[:, newaxis]
+            base_val = np.squeeze(baseline._data[base, :, :]).mean(1)
+            epochs._data[epoch, :, :] -= base_val[:, np.newaxis]
 
     return epochs.drop(drop_list), drop_list
 

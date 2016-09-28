@@ -24,6 +24,8 @@ def annotate_blinks(raw):
     xpos, ypos = x.ravel()/ppd(), y.ravel()/ppd()
     sc = saccade_detection(xpos, ypos, threshold=10, acc_thresh=2000, Hz=1200)
     blinks, scfilt = blink_detection(xpos, ypos, sc)
+    if len(blinks)==0:
+        return None
     blink_onsets = raw.times[blinks[:,0]]
     blink_durations = raw.times[blinks[:,1]]-raw.times[blinks[:,0]]
     return mne.Annotations(blink_onsets, blink_durations, 'bad blinks')
