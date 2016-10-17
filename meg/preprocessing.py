@@ -33,7 +33,6 @@ def get_trial_periods(events, trial_start, trial_end):
     '''
     Parse trial start and end times from events.
     '''
-
     start = [0,0,]
     end = [0,]
     if not len(start) == len(end):
@@ -44,7 +43,6 @@ def get_trial_periods(events, trial_start, trial_end):
         # Aborted block during a trial, find location where [start ... start end] occurs
         i_start, i_end = 0, 0   # i_start points to the beginning of the current
                                 # trial and i_end to the beginning of the current trial.
-        print len(start), len(end)
         if not (len(start) == len(end)):
             # Handle this condition by looking for the closest start to each end.
             id_keep = (0*events[:,0]).astype(bool)
@@ -69,13 +67,14 @@ def get_trial_periods(events, trial_start, trial_end):
     return start, end
 
 
-def get_meta(raw, mapping, pins, trial_start, trial_end):
+def get_meta(raw, mapping, trial_pins, trial_start, trial_end,  other_pins=None):
     '''
     Parse block structure from events in MEG files.
 
     Aggresively tries to fix introduced by recording crashes and late recording
     starts.
 
+    mapping =
     '''
 
     def pins2num(pins):
@@ -98,8 +97,8 @@ def get_meta(raw, mapping, pins, trial_start, trial_end):
     trials = []
     for i, (ts, te) in enumerate(zip(start, end)):
         current_trial = {}
-        trial_nums = events[ts:te, 2]
-        trial_times = events[ts:te, 0]
+        trial_nums = events[ts:te+1, 2]
+        trial_times = events[ts:te+1, 0]
         if pins:
             # Find any pins that need special treatment, parse them and remove
             # triggers from trial_nums
@@ -114,13 +113,35 @@ def get_meta(raw, mapping, pins, trial_start, trial_end):
 
         for trigger, time in zip(trial_nums, trial_times):
             if trigger in mapping.keys():
-                current_trial[mapping[trigger][0]] = mapping[trigger][1]
-                current_trial[mapping[trigger][0]+'_time'] = time
+                key = mapping[trigger][0]
+                val = mapping[trigger][1]
             else:
-                current_trial[trigger] = time
+                key = trigger
+                val = time
+            if key in current_trial.keys():
+                try:
+                    current_trial[key].append(current_trial[key][-1] + 1)
+                    current_trial[key +'_time'].append(time)
+                except AttributeError:
+                    current_trial[key] = [current_trial[key], current_trial[key]+1]
+                    current_trial[key +'_time'] = [current_trial[key +'_time'], time]
+            else:
+                current_trial[key] = val
+                current_trial[str(key) +'_time'] = time
+
         trials.append(current_trial)
 
     meta = pd.DataFrame(trials)
+    # Find other pins that are not trial related
+    if other_pins:
+        nums = events[:, 2
+        for key, value in other_pins.iteritems():
+            if key in nums:
+                pstart = np.where(nums==key)[0][0]+1
+                pend = pstart + np.where(nums[pstart:]>8)[0][0] + 1
+                pvals = nums[pstart:pend]
+                meta.loc[:, value] = pins2num(pvals)
+
     time_fields = [c for c in meta if str(c).endswith('_time')]
     meta_fields = [c for c in meta if not str(c).endswith('_time')]
     return meta.loc[:, meta_fields], meta.loc[:, time_fields]
