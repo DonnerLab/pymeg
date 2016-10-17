@@ -3,19 +3,30 @@ import mne
 import numpy as np
 
 
-filename = '/home/gortega/megdata/SHo_Attractor_20160925_01.ds'
+filename = '/home/gortega/megdata/Pilot1_Attractor_20161017_01.ds'
 raw = mne.io.read_raw_ctf(filename)
-mapping = {30: ('wait_fix', 0),
-       40: ('baseline_start', 0),
-       50: ('dot_onset', 0),
-       60: ('decision_start', 0),
-       61: ('response', -1),
-       62: ('response', 1),
-       70: ('feedback', 1),
-       80: ('rest', 80)}
+
+pins = {session_number:100,
+        block_start:101}
+
+    mapping =
+          {('trial_start', 0):150,
+           ('trial_end', 0):151,
+           ('wait_fix', 0):30,
+           ('baseline_start',0):40,
+           ('dot_onset',0):50,
+           ('decision_start',0) : 60,
+           ('response',-1) : 61,
+           ('response',1) : 62,
+           ('no_decisions',0) : 68,
+           ('feedback',0) : 70,
+           ('rest_delay',0) : 80}
+
+mapping = dict((v,k) for k,v in mapping.iteritems())
+
 
 def get_meta(raw, mapping):
-    meta, timing = meg.preprocessing.get_meta(raw, mapping, {}, 151, 151)
+    meta, timing = meg.preprocessing.get_meta(raw, mapping, pins, 150, 151)
     for c in meta:
         if c in [v[0] for v in mapping.values()] or str(c).endswith('time'):
             continue
