@@ -67,7 +67,7 @@ def get_trial_periods(events, trial_start, trial_end):
     return start, end
 
 
-def get_meta(raw, mapping, trial_pins, trial_start, trial_end,  other_pins=None):
+def get_meta(raw, mapping, trial_pins, trial_start, trial_end, other_pins=None):
     '''
     Parse block structure from events in MEG files.
 
@@ -99,10 +99,10 @@ def get_meta(raw, mapping, trial_pins, trial_start, trial_end,  other_pins=None)
         current_trial = {}
         trial_nums = events[ts:te+1, 2]
         trial_times = events[ts:te+1, 0]
-        if pins:
+        if trial_pins:
             # Find any pins that need special treatment, parse them and remove
             # triggers from trial_nums
-            for key, value in pins.iteritems():
+            for key, value in trial_pins.iteritems():
                 if key in trial_nums:
                     pstart = np.where(trial_nums==key)[0][0]+1
                     pend = pstart + np.where(trial_nums[pstart:]>8)[0][0] + 1
@@ -110,7 +110,6 @@ def get_meta(raw, mapping, trial_pins, trial_start, trial_end,  other_pins=None)
                     current_trial[value] = pins2num(pvals)
                     trial_nums = np.concatenate((trial_nums[:pstart], trial_nums[pend:]))
                     trial_times = np.concatenate((trial_times[:pstart], trial_times[pend:]))
-
         for trigger, time in zip(trial_nums, trial_times):
             if trigger in mapping.keys():
                 key = mapping[trigger][0]
@@ -123,18 +122,17 @@ def get_meta(raw, mapping, trial_pins, trial_start, trial_end,  other_pins=None)
                     current_trial[key].append(current_trial[key][-1] + 1)
                     current_trial[key +'_time'].append(time)
                 except AttributeError:
-                    current_trial[key] = [current_trial[key], current_trial[key]+1]
-                    current_trial[key +'_time'] = [current_trial[key +'_time'], time]
+                    current_trial[str(key)] = [current_trial[key], current_trial[key]+1]
+                    current_trial[str(key) +'_time'] = [current_trial[str(key) +'_time'], time]
             else:
                 current_trial[key] = val
                 current_trial[str(key) +'_time'] = time
-
         trials.append(current_trial)
 
     meta = pd.DataFrame(trials)
     # Find other pins that are not trial related
     if other_pins:
-        nums = events[:, 2
+        nums = events[:, 2]
         for key, value in other_pins.iteritems():
             if key in nums:
                 pstart = np.where(nums==key)[0][0]+1
@@ -152,11 +150,16 @@ def preprocess_block(raw, blinks=True):
     Apply artifact detection to a block of data.
     '''
     ab = None
+    artdef = {}
     if blinks:
         ab = artifacts.annotate_blinks(raw)
+        artdef['blinks'] = ab
     am, zm = artifacts.annotate_muscle(raw)
+    ardef['muscle'] = zm
     ac, zc, d = artifacts.annotate_cars(raw)
+    artdef['cars'] = [zc, d]
     ar, zj = artifacts.annotate_jumps(raw)
+    artdef['jumps'] = zj
     ants = artifacts.combine_annotations([x for x in  [ab, am, ac, ar] if x is not None])
     ants.onset += raw.first_samp/raw.info['sfreq']
     raw.annotations = ants

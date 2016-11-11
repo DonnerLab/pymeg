@@ -3,44 +3,50 @@ import mne
 import numpy as np
 
 
-filename = '/home/gortega/megdata/Pilot1_Attractor_20161017_01.ds'
+filename = '/Volumes/dump/S4-5_Attractor_20161110_02.ds'
 raw = mne.io.read_raw_ctf(filename)
 
-pins = {session_number:100,
-        block_start:101}
+other_pins = {100:'session_number',
+        101:'block_start'}
 
-    mapping =
-          {('trial_start', 0):150,
-           ('trial_end', 0):151,
-           ('wait_fix', 0):30,
-           ('baseline_start',0):40,
-           ('dot_onset',0):50,
-           ('decision_start',0) : 60,
-           ('response',-1) : 61,
-           ('response',1) : 62,
-           ('no_decisions',0) : 68,
-           ('feedback',0) : 70,
-           ('rest_delay',0) : 80}
+trial_pins = {150:'trial_num'}
+
+mapping = {
+       ('noise', 0):111,
+       ('noise', 1):112,
+       ('noise', 2):113,
+       ('start_button', 0):89,
+       ('start_button', 1):91,
+       ('trial_start', 0):150,
+       ('trial_end', 0):151,
+       ('wait_fix', 0):30,
+       ('baseline_start',0):40,
+       ('dot_onset',0):50,
+       ('decision_start',0) : 60,
+       ('response',-1) : 61,
+       ('response',1) : 62,
+       ('no_decisions',0) : 68,
+       ('feedback',0) : 70,
+       ('rest_delay',0) : 80}
+
 
 mapping = dict((v,k) for k,v in mapping.iteritems())
 
 
 def get_meta(raw, mapping):
-    meta, timing = meg.preprocessing.get_meta(raw, mapping, pins, 150, 151)
-    for c in meta:
-        if c in [v[0] for v in mapping.values()] or str(c).endswith('time'):
-            continue
-        del meta[c]
+    meta, timing = meg.preprocessing.get_meta(raw, mapping, trial_pins, 150, 151, other_pins)
+    blocks = list(where(meta.trial_num.values==1)[0]) +  [len(meta)]
+    for block, (start, end) in enumerate(zip(blocks[:-1], blocks[1:])):
+        meta.loc[start:end, 'block_num'] = block
+        timing.loc[start:end, 'block_num'] = block
 
     meta.loc[:, 'hash'] = timing.decision_start_time.values
-    meta.loc[:, 'block'] = meta.index.values/102
-    #timing = timing.set_index('hash')
-    timing.loc[:, 'block'] = meta.block
     return meta, timing
 
 meta, timing = get_meta(raw, mapping)
 
-for i, ((bnum, mb), (_, tb)) in enumerate(zip(meta.groupby('block'), timing.groupby('block'))):
+for i, ((bnum, mb), (_, tb)) in enumerate(zip(meta.groupby('block_num'), timing.groupby('block_num'))):
+    # Iterate through blocks in meta and timing
     r = raw.copy()
     r.crop(tmin=(tb.baseline_start_time.min()/1200.)-10, tmax=10+(tb.feedback_time.max()/1200.))
     mb, tb = get_meta(r, mapping)

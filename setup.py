@@ -1,6 +1,11 @@
 #!/usr/bin/env python
 
-from setuptools.core import setup
+# Requires:
+#   - pyfftw >= 0.10.3
+#   - joblib
+#   - pymne
+
+from setuptools import setup
 
 setup(name='pyMEG',
       version='0.0.1',
