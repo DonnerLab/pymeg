@@ -33,38 +33,18 @@ def get_trial_periods(events, trial_start, trial_end):
     '''
     Parse trial start and end times from events.
     '''
-    start = [0,0,]
-    end = [0,]
+    start = np.where(events[:,2] == trial_start)[0]
+    end = np.where(events[:, 2] == trial_end)[0]
     if not len(start) == len(end):
-        dif = len(start)-len(end)
-        start = np.where(events[:,2] == trial_start)[0]
-        end = np.where(events[:, 2] == trial_end)[0]
-
-        # Aborted block during a trial, find location where [start ... start end] occurs
-        i_start, i_end = 0, 0   # i_start points to the beginning of the current
-                                # trial and i_end to the beginning of the current trial.
-        if not (len(start) == len(end)):
-            # Handle this condition by looking for the closest start to each end.
-            id_keep = (0*events[:,0]).astype(bool)
-            start_times = events[start, 0]
-            end_times = events[end, 0]
-
-            for i, e in enumerate(end_times):
-                d = start_times-e
-                d[d>0] = -np.inf
-                matching_start = np.argmax(d)
-                evstart = start[matching_start]
-
-                if (trial_end in events[evstart-10:evstart, 2]):
-                    prev_end = 10-np.where(events[evstart-10:evstart, 2]==trial_end)[0][0]
-                    id_keep[(start[matching_start]-prev_end+1):end[i]+1] = True
-                else:
-                    id_keep[(start[matching_start]-10):end[i]+1] = True
-            events = events[id_keep,:]
-
-        start = np.where(events[:,2] == trial_start)[0]
-        end = np.where(events[:, 2] == trial_end)[0]
-    return start, end
+        start_times = events[start, 0]
+        start = []
+        end_times = events[end, 0]
+        for i, e in enumerate(end_times):
+            d = start_times-e
+            d[d>0] = -np.inf
+            start_index = np.where(events[:, 0]==start_times[np.argmax(d)])[0][0]
+            start.append(start_index)
+    return np.array(start), end
 
 
 def get_meta(raw, mapping, trial_pins, trial_start, trial_end, other_pins=None):
@@ -110,6 +90,7 @@ def get_meta(raw, mapping, trial_pins, trial_start, trial_end, other_pins=None):
                     current_trial[value] = pins2num(pvals)
                     trial_nums = np.concatenate((trial_nums[:pstart], trial_nums[pend:]))
                     trial_times = np.concatenate((trial_times[:pstart], trial_times[pend:]))
+
         for trigger, time in zip(trial_nums, trial_times):
             if trigger in mapping.keys():
                 key = mapping[trigger][0]
@@ -130,15 +111,18 @@ def get_meta(raw, mapping, trial_pins, trial_start, trial_end, other_pins=None):
         trials.append(current_trial)
 
     meta = pd.DataFrame(trials)
+
     # Find other pins that are not trial related
     if other_pins:
         nums = events[:, 2]
         for key, value in other_pins.iteritems():
-            if key in nums:
-                pstart = np.where(nums==key)[0][0]+1
+            pstarts = np.where(nums==key)[0] + 1
+            for pstart in pstarts:
+                t = events[pstart, 0]
                 pend = pstart + np.where(nums[pstart:]>8)[0][0] + 1
                 pvals = nums[pstart:pend]
-                meta.loc[:, value] = pins2num(pvals)
+                idx = meta.trial_start_time > t
+                meta.loc[idx, value] = pins2num(pvals)
 
     time_fields = [c for c in meta if str(c).endswith('_time')]
     meta_fields = [c for c in meta if not str(c).endswith('_time')]
@@ -155,15 +139,15 @@ def preprocess_block(raw, blinks=True):
         ab = artifacts.annotate_blinks(raw)
         artdef['blinks'] = ab
     am, zm = artifacts.annotate_muscle(raw)
-    ardef['muscle'] = zm
+    artdef['muscle'] = zm
     ac, zc, d = artifacts.annotate_cars(raw)
     artdef['cars'] = [zc, d]
     ar, zj = artifacts.annotate_jumps(raw)
     artdef['jumps'] = zj
     ants = artifacts.combine_annotations([x for x in  [ab, am, ac, ar] if x is not None])
-    ants.onset += raw.first_samp/raw.info['sfreq']
+    #ants.onset += raw.first_samp/raw.info['sfreq']
     raw.annotations = ants
-    artdef = {'muscle':zm, 'cars':(zc, d), 'jumps':zj}
+    artdef.update({'muscle':zm, 'cars':(zc, d), 'jumps':zj})
     return raw, ants, artdef
 
 
@@ -196,8 +180,6 @@ def get_epoch(raw, meta, timing,
     ev = mne_events(joined_meta, event, epoch_label)
     eb = mne_events(joined_meta, base_event, epoch_label)
 
-    print eb
-
     picks = mne.pick_types(raw.info, meg=True, eeg=False, stim=False, eog=False, exclude='bads')
 
     base = mne.Epochs(raw, eb, tmin=base_time[0], tmax=base_time[1], baseline=None, picks=picks,
@@ -209,7 +191,7 @@ def get_epoch(raw, meta, timing,
     stim_period, dl = apply_baseline(stim_period, base)
     # Now filter raw object to only those left.
     sei = stim_period.events[:, 2]
-    meta = meta.reset_index().set_index(epoch_label).loc[sei]
+    meta = joined_meta.reset_index().set_index(epoch_label).loc[sei]
     return meta, stim_period
 
 
@@ -314,10 +296,8 @@ def combine_annotations(annotations, first_samples, last_samples, sfreq):
 
     onsets = [(ann.onset-(fs/sfreq))+offset
                         for ann, fs, offset in zip(annotations, first_samples, offsets) if ann is not None]
-
     if len(onsets) == 0:
         return mne.annotations.Annotations(onset=[], duration=[], description=None)
-
     onsets = np.concatenate(onsets) + (first_samples[0]/sfreq)
     return mne.annotations.Annotations(onset=onsets,
         duration=np.concatenate([ann.duration for ann in annotations]),

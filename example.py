@@ -36,25 +36,30 @@ mapping = dict((v,k) for k,v in mapping.iteritems())
 def get_meta(raw, mapping):
     meta, timing = meg.preprocessing.get_meta(raw, mapping, trial_pins, 150, 151, other_pins)
     blocks = list(where(meta.trial_num.values==1)[0]) +  [len(meta)]
-    for block, (start, end) in enumerate(zip(blocks[:-1], blocks[1:])):
-        meta.loc[start:end, 'block_num'] = block
-        timing.loc[start:end, 'block_num'] = block
-
     meta.loc[:, 'hash'] = timing.decision_start_time.values
     return meta, timing
 
 meta, timing = get_meta(raw, mapping)
 
-for i, ((bnum, mb), (_, tb)) in enumerate(zip(meta.groupby('block_num'), timing.groupby('block_num'))):
+index = meta.block_start
+
+for i, ((bnum, mb), (_, tb)) in enumerate(zip(meta.groupby(index), timing.groupby(index))):
     # Iterate through blocks in meta and timing
     r = raw.copy()
     r.crop(tmin=(tb.baseline_start_time.min()/1200.)-10, tmax=10+(tb.feedback_time.max()/1200.))
     mb, tb = get_meta(r, mapping)
     r, ants, artdef = meg.preprocessing.preprocess_block(r, blinks=False)
-    slmeta, stimlock = meg.preprocessing.get_epoch(r, mb, tb, event='decision_start_time', epoch_time=(-2.5, .5),
-        base_event='baseline_start_time', base_time=(0, 0.5), epoch_label='hash')
-    slmeta.to_hdf('sl_meta_%i_ds1.hdf'%i, 'meta')
-    stimlock.save('sl_meta_%i_ds1-epo.fif.gz'%i)
+
+    slmeta, stimlock = meg.preprocessing.get_epoch(r, mb, tb,
+        event='decision_start_time',
+        epoch_time=(-2.5, .5),
+        base_event='decision_start_time',
+        base_time=(-3, -2.5),
+        epoch_label='decision_start_time')
+
+
+
+
     del slmeta
     del stimlock
     rlmeta, resplock = meg.preprocessing.get_epoch(r, mb, tb, event='response_time', epoch_time=(-2.5, .5),
