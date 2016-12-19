@@ -36,25 +36,25 @@ def params_from_json(filename):
     return params
 
 
-def tfr(filename, outstr='tfr.pickle', foi=None, cycles=None, time_bandwidth=None, decim=10, n_jobs=12, **kwargs):
+def tfr(filename, outstr='tfr.hdf', foi=None, cycles=None, time_bandwidth=None, decim=10, n_jobs=12, **kwargs):
     outname = filename.replace('-epo.fif.gz', outstr)
     epochs = mne.read_epochs(filename)
     power = mne.time_frequency.tfr_multitaper(epochs, foi, cycles,
         decim=decim, time_bandwidth=time_bandwidth, average=False, return_itc=False,
         n_jobs=12)
     print filename, '-->', outname
-    cPickle.dump({'power': power,
-                  'foi': foi,
-                  'cycles': cycles,
-                  'time_bandwidth': time_bandwidth,
-                  'decim':decim,
-                  'events':epochs.events}, open(outname, 'w'), 2)
+    save_tfr(filename, pwer)
+    #cPickle.dump({'power': power,
+    #              'foi': foi,
+    #              'cycles': cycles,
+    #              'time_bandwidth': time_bandwidth,
+    #              'decim':decim,
+    #              'events':epochs.events}, open(outname, 'w'), 2)
     return True
 
 
 def tiling_plot(foi=None, cycles=None, time_bandwidth=None, **kwargs):
     colors = sns.cubehelix_palette(len(foi), light=0.75,  start=.5, rot=-.75)
-
     if len(np.atleast_1d(cycles))==1:
         cycles = [cycles]*len(foi)
     foi = np.atleast_1d(foi)
@@ -73,7 +73,7 @@ def tiling_plot(foi=None, cycles=None, time_bandwidth=None, **kwargs):
 
 
 
-def load_tfr(filename, freq=(0, 100), channel=None, tmin=None, tmax=None):
+def combine_tfr(filename, freq=(0, 100), channel=None, tmin=None, tmax=None):
     tfr = cPickle.load(open(filename))
     foi = tfr['power'].freqs
     foi = foi[(freq[0] < foi) & (foi <freq[1])]
@@ -115,3 +115,14 @@ def tfr2df(tfr, freq, channel, tmin=None, tmax=None, hash=None):
     assert trials.shape==tfr.data.shape
     return pd.DataFrame({'trial':trials.ravel(), 'channel':channel.ravel(),
         'freq':freq.ravel(), 'time':time.ravel(), 'power':tfr.data.ravel()})
+
+
+def save_tfr(tfr, fname):
+    from mne.externals import h5io
+    h5io.write_hdf(fname, {'data':tfr.data, 'freqs':tfr.freqs, 'times':tfr.times,
+        'comment':tfr.comment, 'info':tfr.info)
+
+
+def load_tfr(fname):
+    return mne.time_frequency.tfr.EpochsTFR(**h5io.read_hdf(fname))
+
