@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 '''
 Run a simple script on one cluster node!
 '''
@@ -5,34 +6,38 @@ import argparse
 import os
 import subprocess
 
-def submit(walltime, cores, memory, cwd, script):
+def submit(walltime, cores, memory, cwd, script, name):
     command = '''
     #!/bin/bash
     # walltime: defines maximum lifetime of a job
     # nodes/ppn: how many nodes (usually 1)? how many cores?
 
     #PBS -q batch
-    #PBS -l walltime=%i:00:00
-    #PBS -l nodes=1:ppn=%s
-    #PBS -l mem=%igb
-    #PBS -l nodes=node041
-    #PBS -N Gortega
+    #PBS -l walltime={walltime}:00:00
+    #PBS -l nodes=1:ppn={cores}
+    #PBS -l mem={memory}gb
+    #PBS -N {name}
+    
+    cd {cwd}  
+    mkdir -p cluster
+    chmod a+rwx cluster
+    
     #### set journal & error options
-    #PBS -o /home/gortega/scratch/$PBS_JOBID.o
-    #PBS -e /home/gortega/scratch/$PBS_JOBID.e
+    #PBS -o {cwd}/cluster/$PBS_JOBID.o
+    #PBS -e {cwd}/cluster/$PBS_JOBID.e
 
-    # -- run in the current working (submission) directory --
-    cd %s
-    chmod g+wx cluster
 
     # FILE TO EXECUTE
-    export PYTHONPATH=/home/gortega/niklas_meg/pymeg/scripts/:$PYTHONPATH
-    %s 1> %s/cluster/$PBS_JOBID.out 2> %s/cluster/$PBS_JOBID.err
-    '''%(walltime, cores, memory, cwd, script, cwd, cwd)
+    {script} 1> {cwd}/cluster/$PBS_JOBID.out 2> {cwd}/cluster/$PBS_JOBID.err
+    '''%({'walltime':walltime, 
+         'cores':cores, 
+         'memory':memory, 
+         'cwd':cwd, 
+         'script':script,
+         'name':name})
     tmp = file('to_cluster.sh', 'w')
     tmp.write(command)
     tmp.close()
-
     subprocess.call("qsub to_cluster.sh", shell=True)
 
 
@@ -47,15 +52,17 @@ if __name__=='__main__':
     parser.add_argument("--array", help="Map scripts function to workers?", default=False, action="store_true")
     parser.add_argument("--nosubmit", dest='submit', help="Do not submit to torque", default=True, action="store_false")
 
-    parser.add_argument("--name", help="Give a name to this job", default='cluster')
+    parser.add_argument("--name", help="Give a name to this job. Defaults to executed command.")
     parser.add_argument("--redo-older", dest='older',
-        help="Redo all tasks where results are older than this %Y%m%d (e.g. 20160825) date. Only effective for array jobs.",
+        help="Redo all tasks where results are older than this Ymd date (e.g. 20160825). Only effective for array jobs.",
         type=str, default='now')
-
+    
     args = parser.parse_args()
+    if args.name is None:
+        args.name = args.script
     if not args.array:
         if args.submit:
-            submit(args.walltime, args.cores, args.memory, os.getcwd(), args.script)
+            submit(args.walltime, args.cores, args.memory, os.getcwd(), args.script, args.name)
     else:
         '''
         Need to build script to execute.
@@ -70,7 +77,6 @@ if __name__=='__main__':
             f =  tempfile.NamedTemporaryFile(dir=tmpdir, suffix='.py', delete=False)
             script = """
 print 'Parameters:', '%s'
-print '%s'
 import %s
 %s.execute(%s)
             """%(str(x), f.name, pyfile, pyfile, str(x))

@@ -13,4 +13,5 @@ setup(name='pyMEG',
       author='Niklas Wilming',
       author_email='nwilming@uke.de',
       url='https://github.com/DonnerLab/pymeg',
-      packages=['meg'])
+      packages=['meg'],
+      scripts=['scripts/to_cluster'])
