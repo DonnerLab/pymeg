@@ -29,7 +29,7 @@ def submit(walltime, cores, memory, cwd, script, name):
 
     # FILE TO EXECUTE
     {script} 1> {cwd}/cluster/$PBS_JOBID.out 2> {cwd}/cluster/$PBS_JOBID.err
-    '''%({'walltime':walltime, 
+    '''.format(**{'walltime':walltime, 
          'cores':cores, 
          'memory':memory, 
          'cwd':cwd, 
