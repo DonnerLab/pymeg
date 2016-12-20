@@ -16,16 +16,17 @@ def submit(walltime, cores, memory, cwd, script):
     #PBS -l nodes=1:ppn=%s
     #PBS -l mem=%igb
     #PBS -l nodes=node041
-    #PBS -N niklas
+    #PBS -N Gortega
     #### set journal & error options
-    #PBS -o /home/nwilming/scratch/$PBS_JOBID.o
-    #PBS -e /home/nwilming/scratch/$PBS_JOBID.e
+    #PBS -o /home/gortega/scratch/$PBS_JOBID.o
+    #PBS -e /home/gortega/scratch/$PBS_JOBID.e
 
     # -- run in the current working (submission) directory --
     cd %s
     chmod g+wx cluster
 
     # FILE TO EXECUTE
+    export PYTHONPATH=/home/gortega/niklas_meg/pymeg/scripts/:$PYTHONPATH
     %s 1> %s/cluster/$PBS_JOBID.out 2> %s/cluster/$PBS_JOBID.err
     '''%(walltime, cores, memory, cwd, script, cwd, cwd)
     tmp = file('to_cluster.sh', 'w')

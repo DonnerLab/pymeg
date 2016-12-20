@@ -43,7 +43,7 @@ def tfr(filename, outstr='tfr.hdf', foi=None, cycles=None, time_bandwidth=None, 
         decim=decim, time_bandwidth=time_bandwidth, average=False, return_itc=False,
         n_jobs=12)
     print filename, '-->', outname
-    save_tfr(filename, pwer)
+    save_tfr(power, filename)
     #cPickle.dump({'power': power,
     #              'foi': foi,
     #              'cycles': cycles,
@@ -119,10 +119,10 @@ def tfr2df(tfr, freq, channel, tmin=None, tmax=None, hash=None):
 
 def save_tfr(tfr, fname):
     from mne.externals import h5io
-    h5io.write_hdf(fname, {'data':tfr.data, 'freqs':tfr.freqs, 'times':tfr.times,
-        'comment':tfr.comment, 'info':tfr.info)
+    h5io.write_hdf5(fname, {'data':tfr.data, 'freqs':tfr.freqs, 'times':tfr.times,
+        'comment':tfr.comment, 'info':tfr.info}, overwrite=True)
 
 
 def load_tfr(fname):
-    return mne.time_frequency.tfr.EpochsTFR(**h5io.read_hdf(fname))
+    return mne.time_frequency.tfr.EpochsTFR(**h5io.read_hdf5(fname))
 

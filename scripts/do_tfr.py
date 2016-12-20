@@ -5,7 +5,7 @@ import cPickle
 import os
 import datetime
 
-from conf_analysis.meg import tfr
+from meg import tfr
 
 def modification_date(filename):
     t = os.path.getmtime(filename)
@@ -13,14 +13,14 @@ def modification_date(filename):
 
 locale.setlocale(locale.LC_ALL, "en_US")
 
-outstr = 'tfr.pickle'
+outstr = 'tfr.hdf'
 params = tfr.params_from_json('all_tfr150_parameters.json')
 tfr.describe_taper(**params)
 
 
 def list_tasks(older_than='now'):
     import glob
-    filenames = glob.glob('/home/nwilming/conf_meg/S4/*response-epo.fif.gz') 
+    filenames = glob.glob('/home/gortega/meg_analysis/preprocess_data/resp*-epo.fif.gz') 
     if older_than == 'now':
         older_than = datetime.datetime.today()
     else:
@@ -36,7 +36,6 @@ def list_tasks(older_than='now'):
         except OSError:
             pass
         yield filename
-
 
 def execute(filename):
     print 'Starting TFR for ', filename
