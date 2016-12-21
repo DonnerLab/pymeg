@@ -82,6 +82,15 @@ def combine_tfr(filename, freq=(0, 100), channel=None, tmin=None, tmax=None):
     return tfr2df(tfr['power'], foi, channel, tmin=tmin, tmax=tmax, hash=tfr['events'][:,2])
 
 
+def from_pickle(filename, freq=(0, 100), channel=None, tmin=None, tmax=None):
+    tfr = cPickle.load(open(filename))
+    foi = tfr['power'].freqs
+    foi = foi[(freq[0] < foi) & (foi <freq[1])]
+    if channel is None:
+        channel = tfr['power'].ch_names
+    return tfr2df(tfr['power'], foi, channel, tmin=tmin, tmax=tmax, hash=tfr['events'][:,2])
+
+
 def tfr2df(tfr, freq, channel, tmin=None, tmax=None, hash=None):
     '''
     Read out values for specific frequencies and channels from set of tfrs.
@@ -110,8 +119,6 @@ def tfr2df(tfr, freq, channel, tmin=None, tmax=None, hash=None):
     trials, channel, freq, time = np.meshgrid(trials, ch_ids.ravel(),
                                               tfr.freqs.ravel(), tfr.times.ravel(),
                                               indexing='ij')
-    print trials.shape, tfr.data.shape
-    print ch_ids.shape, tfr.freqs.shape
     assert trials.shape==tfr.data.shape
     return pd.DataFrame({'trial':trials.ravel(), 'channel':channel.ravel(),
         'freq':freq.ravel(), 'time':time.ravel(), 'power':tfr.data.ravel()})
@@ -125,4 +132,3 @@ def save_tfr(tfr, fname):
 
 def load_tfr(fname):
     return mne.time_frequency.tfr.EpochsTFR(**h5io.read_hdf5(fname))
-
