@@ -43,7 +43,7 @@ def tfr(filename, outstr='tfr.hdf', foi=None, cycles=None, time_bandwidth=None, 
         decim=decim, time_bandwidth=time_bandwidth, average=False, return_itc=False,
         n_jobs=12)
     print filename, '-->', outname
-    save_tfr(power, filename)
+    save_tfr(power, outname)
     #cPickle.dump({'power': power,
     #              'foi': foi,
     #              'cycles': cycles,
@@ -110,6 +110,7 @@ def tfr2df(tfr, freq, channel, tmin=None, tmax=None, hash=None):
     ch_idx = np.in1d(np.arange(tfr.data.shape[1]), ch_ids)
     freq_idx = np.in1d(tfr.freqs, freq)
     tfr.data = tfr.data[:, ch_ids, :,:][:, :, np.where(freq_idx)[0], :]
+    print tfr.data.shape
     tfr.freqs = tfr.freqs[freq_idx]
     if hash is None:
         trials = np.arange(tfr.data.shape[0])
