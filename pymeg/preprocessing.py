@@ -20,8 +20,8 @@ This leads to the following design:
 import mne
 import numpy as np
 import pandas as pd
-from meg.tools import hilbert
-from meg import artifacts
+from pymeg.tools import hilbert
+from pymeg import artifacts
 import logging
 from joblib import Memory
 
@@ -175,7 +175,10 @@ def get_epoch(raw, meta, timing,
     base_time : (start, end) in sec. relative to baseline onset
     epoch_label : Column in meta that contains epoch labels.
     '''
-    joined_meta = pd.concat([meta, timing], axis=1)
+    fields = set((event, base_event, epoch_label))
+    joined_meta = (pd.concat([meta, timing], axis=1)
+                    .loc[:, fields]
+                    .dropna())
 
     ev = mne_events(joined_meta, event, epoch_label)
     eb = mne_events(joined_meta, base_event, epoch_label)

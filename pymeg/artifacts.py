@@ -131,10 +131,16 @@ def detect_muscle(raw, cutoff=10, frequency_band=(110, 140)):
         raw.load_data()
     raw.pick_channels([x for x in raw.ch_names if x.startswith('M')])
 
-    filt = mne.filter.band_pass_filter(raw._data, raw.info['sfreq'],
-                                       frequency_band[0], frequency_band[1],  method='iir',
+    #filt = mne.filter.band_pass_filter(raw._data, raw.info['sfreq'],
+    #                                   frequency_band[0], frequency_band[1],  method='iir',
+    #                                   iir_params = dict(order=9, ftype='butter'),
+    #                                   copy=False)
+    filt = mne.filter.filter_data(raw._data, raw.info['sfreq'],
+                                       l_freq=frequency_band[0], h_freq=frequency_band[1],  method='iir',
                                        iir_params = dict(order=9, ftype='butter'),
                                        copy=False)
+
+
     hilb = abs(hilbert(filt)).astype(float)
     del filt
     # Compute IGR and median
@@ -167,7 +173,8 @@ def detect_jumps(raw, cutoff=25):
         logging.info('Loading data for muscle artifact detection')
         raw.load_data()
     raw.pick_channels([x for x in raw.ch_names if x.startswith('M')])
-    filt = mne.filter.low_pass_filter(raw._data, raw.info['sfreq'], 1)
+    #filt = mne.filter.low_pass_filter(raw._data, raw.info['sfreq'], 1)
+    filt = mne.filter.filter_data(raw._data, raw.info['sfreq'], l_freq=None, h_freq=1)
 
     jump_kernel = (np.array([1]*10),
                    [0, 0, 0],
