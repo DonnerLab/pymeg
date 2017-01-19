@@ -6,7 +6,7 @@ import argparse
 import os
 import subprocess
 
-def submit(walltime, cores, memory, cwd, script, name):
+def submit(walltime, cores, memory, cwd, script, name, shellfname='to_cluster.sh'):
     command = '''
     #!/bin/bash
     # walltime: defines maximum lifetime of a job
@@ -35,10 +35,10 @@ def submit(walltime, cores, memory, cwd, script, name):
          'cwd':cwd, 
          'script':script,
          'name':name})
-    tmp = file('to_cluster.sh', 'w')
+    tmp = file(shellfname, 'w')
     tmp.write(command)
     tmp.close()
-    subprocess.call("qsub to_cluster.sh", shell=True)
+    subprocess.call("qsub %s"%shellfname, shell=True)
 
 
 if __name__=='__main__':
@@ -70,19 +70,21 @@ if __name__=='__main__':
         import tempfile
         pyfile = args.script.replace('.py', '')
         mod = __import__(pyfile)
-        tmpdir = tempfile.mkdtemp(prefix=args.name+'_temp', dir=os.getcwd())
-        for x in mod.list_tasks(args.older):
+        tmpdir = tempfile.mkdtemp(prefix='cluster_'+args.name, dir=os.getcwd())
+        for i, x in enumerate(mod.list_tasks(args.older)):
             if type(x) == str:
                 x = '"'+x+'"'
-            f =  tempfile.NamedTemporaryFile(dir=tmpdir, suffix='.py', delete=False)
+            fname = os.path.join(tmpdir, 'job_%i.py'%i)
+            shellfname = fname.replace('.py', '.sh')
+            f =  open(fname, 'w')
             script = """
-print 'Parameters:', '%s'
+print 'Parameters:', '%s', '%s'
 import %s
 %s.execute(%s)
-            """%(str(x), f.name, pyfile, pyfile, str(x))
-            command = 'python ' + f.name
+            """%(str(x), fname, pyfile, pyfile, str(x))
+            command = 'python ' + fname
             f.write(script)
             f.close()
             subprocess.call(['chmod', '-R', 'a+rwx', tmpdir])
             if args.submit:
-                submit(args.walltime, args.cores, args.memory, os.getcwd(), command)
+                submit(args.walltime, args.cores, args.memory, os.getcwd(), command, args.name, shellfname=shellfname)
