@@ -176,6 +176,7 @@ def get_epoch(raw, meta, timing,
     epoch_label : Column in meta that contains epoch labels.
     '''
     fields = set((event, base_event, epoch_label))
+    all_meta = pd.concat([meta, timing], axis=1)
     joined_meta = (pd.concat([meta, timing], axis=1)
                     .loc[:, fields]
                     .dropna())
@@ -194,7 +195,7 @@ def get_epoch(raw, meta, timing,
     stim_period, dl = apply_baseline(stim_period, base)
     # Now filter raw object to only those left.
     sei = stim_period.events[:, 2]
-    meta = joined_meta.reset_index().set_index(epoch_label).loc[sei]
+    meta = all_meta.reset_index().set_index(epoch_label).loc[sei]
     return meta, stim_period
 
 
