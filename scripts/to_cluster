@@ -81,7 +81,7 @@ if __name__=='__main__':
 print 'Parameters:', '%s', '%s'
 import %s
 %s.execute(%s)
-            """%(str(x), fname, pyfile, pyfile, str(x))
+            """%(str(x).replace("'",''), fname, pyfile, pyfile, str(x))
             command = 'python ' + fname
             f.write(script)
             f.close()
