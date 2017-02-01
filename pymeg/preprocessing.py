@@ -142,12 +142,12 @@ def preprocess_block(raw, blinks=True):
     artdef['muscle'] = zm
     ac, zc, d = artifacts.annotate_cars(raw)
     artdef['cars'] = [zc, d]
-    ar, zj = artifacts.annotate_jumps(raw)
+    raw, ar, zj, jumps = artifacts.annotate_jumps(raw)
     artdef['jumps'] = zj
     ants = artifacts.combine_annotations([x for x in  [ab, am, ac, ar] if x is not None])
     #ants.onset += raw.first_samp/raw.info['sfreq']
     raw.annotations = ants
-    artdef.update({'muscle':zm, 'cars':(zc, d), 'jumps':zj})
+    artdef.update({'muscle':zm, 'cars':(zc, d), 'jumps':(zj, jumps)})
     return raw, ants, artdef
 
 

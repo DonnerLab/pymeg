@@ -55,13 +55,31 @@ def annotate_cars(raw, cutoff=4.0, der_cutoff=7.):
     return annotations, z, d
 
 
-def annotate_jumps(raw, cutoff=25):
+def annotate_jumps(raw, cutoff=25, allowed_before_bad=20):
     logging.info('Annotating jump artifacts')
-    arts, z = detect_jumps(raw.copy(), cutoff=cutoff)
+    arts, z, jumps_per_channel = detect_jumps(raw.copy(), cutoff=cutoff)
+    # Need to check for jumps_per_channel
+    bads = [k for k, v in jumps_per_channel.iteritems() if v > allowed_before_bad]
+    arts = [arts[k] for k, v in jumps_per_channel.iteritems() if v<= allowed_before_bad]
+    
+    if len(bads)>0:
+        if 'bads' in raw.info.keys():
+            raw.info['bads'].extend(bads)
+        else:
+            raw.info['bads'] = bads
+    a = []
+    for k in arts:
+        if len(k) is not 0:
+            a.extend(k)
+    print arts
+    arts = np.array(a)
     annotations = None
-    if len(arts)>0:
-        annotations = mne.Annotations(arts[:,0], arts[:,1], 'bad jump')
-    return annotations, z
+    try: 
+        if len(arts)>0:
+            annotations = mne.Annotations(arts[:,0], arts[:,1], 'bad jump')
+    except IndexError:
+        pass
+    return raw, annotations, z, jumps_per_channel
 
 
 def detect_cars(raw, cutoff=3.5, der_cutoff=5.0, frequency_band=(None, 1)):
@@ -97,8 +115,8 @@ def detect_cars(raw, cutoff=3.5, der_cutoff=5.0, frequency_band=(None, 1)):
     # Compute derivative of zh
     d = np.concatenate(([0], np.diff(zh)))
     d = d/np.diff(np.percentile(d, [10, 80])) # Normalize to have 80 between -1 and 1
-    d[:raw.info['sfreq']]=0
-    d[-raw.info['sfreq']:]=0
+    d[:int(raw.info['sfreq'])]=0
+    d[-int(raw.info['sfreq']):]=0
 
     # Compute artifact borders
     art_borders = np.where(np.diff(np.concatenate([[0], zh>cutoff, [0]])))[0]
@@ -190,15 +208,19 @@ def detect_jumps(raw, cutoff=25):
     Qs = np.percentile(filt, [10, 50, 90], axis=1)
     IQR = Qs[2,:]-Qs[0,:]
     m = Qs[1, :]
-    filt = (((filt-m[:, np.newaxis])/IQR[:, np.newaxis]))
-    zh = (filt**2).max(0)
+    filt = (((filt-m[:, np.newaxis])/IQR[:, np.newaxis]))**2
+    # Need to keep information about channels here.
 
-    art_borders = np.where(np.diff(np.concatenate([[0], zh>cutoff, [0]])))[0]
-
-    artifacts = []
-    for start, end in zip(art_borders[0::2], art_borders[1::2]):
-       artifacts.append(((start-1)/raw.info['sfreq'], (end-start)/raw.info['sfreq']))
-    return np.array(artifacts), zh
+    artifacts = {}
+    channel_count = {}
+    for i, zh in enumerate(filt):
+        artifacts[raw.ch_names[i]] = []
+        art_borders = np.where(np.diff(np.concatenate([[0], zh>cutoff, [0]])))[0]
+        channel_count[raw.ch_names[i]] = 0
+        for start, end in zip(art_borders[0::2], art_borders[1::2]):
+           artifacts[raw.ch_names[i]].append(((start-1)/raw.info['sfreq'], (end-start)/raw.info['sfreq']))
+           channel_count[raw.ch_names[i]] += 1
+    return artifacts, zh, channel_count
 
 
 def eye_voltage2gaze(raw, ranges=(-5, 5), screen_x=(0, 1920),
