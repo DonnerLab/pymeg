@@ -1,11 +1,20 @@
-import sys
-sys.path.append('/home/nwilming/')
 import glob
 import mne, locale
 import pandas as pd
 import numpy as np
 import cPickle
 import json
+
+import h5py
+from mne.externals import h5io
+read = h5io._h5io._triage_read
+
+from os.path import expanduser, join
+home = expanduser("~")
+
+from joblib import Memory
+
+memory = Memory(cachedir=join(home, 'cache_pymeg'), verbose=0)
 
 try:
     import seaborn as sns
@@ -17,6 +26,10 @@ except ImportError:
 
 
 def describe_taper(foi=None, cycles=None, time_bandwidth=None, **kwargs):
+    '''
+    Print information about frequency smoothing / temporal smoothing for a set
+    of taper parameters.
+    '''
     from tabulate import tabulate
     if len(np.atleast_1d(cycles))==1:
         cycles = [cycles]*len(foi)
@@ -29,6 +42,9 @@ def describe_taper(foi=None, cycles=None, time_bandwidth=None, **kwargs):
 
 
 def params_from_json(filename):
+    '''
+    Load taper parameters from a json file.
+    '''
     params = json.load(open(filename))
     assert('foi' in params.keys())
     assert('cycles' in params.keys())
@@ -36,21 +52,17 @@ def params_from_json(filename):
     return params
 
 
-def tfr(filename, outstr='tfr.hdf', foi=None, cycles=None, time_bandwidth=None, decim=10, n_jobs=12, **kwargs):
+def tfr(filename, outstr='tfr.hdf', foi=None, cycles=None, time_bandwidth=None, decim=10, n_jobs=4, **kwargs):
+    '''
+    Run TFR decomposition with multitapers.
+    '''
     outname = filename.replace('-epo.fif.gz', outstr)
     epochs = mne.read_epochs(filename)
     power = mne.time_frequency.tfr_multitaper(epochs, foi, cycles,
         decim=decim, time_bandwidth=time_bandwidth, average=False, return_itc=False,
-        n_jobs=12)
-    print filename, '-->', outname
-    save_tfr(power, outname)
-    #cPickle.dump({'power': power,
-    #              'foi': foi,
-    #              'cycles': cycles,
-    #              'time_bandwidth': time_bandwidth,
-    #              'decim':decim,
-    #              'events':epochs.events}, open(outname, 'w'), 2)
-    return True
+        n_jobs=n_jobs)
+    save_tfr(power, outname, epochs.events)
+    return power
 
 
 def tiling_plot(foi=None, cycles=None, time_bandwidth=None, **kwargs):
@@ -72,64 +84,82 @@ def tiling_plot(foi=None, cycles=None, time_bandwidth=None, **kwargs):
     plt.show()
 
 
-
-def combine_tfr(filename, freq=(0, 100), channel=None, tmin=None, tmax=None):
-    tfr = cPickle.load(open(filename))
-    foi = tfr['power'].freqs
-    foi = foi[(freq[0] < foi) & (foi <freq[1])]
-    if channel is None:
-        channel = tfr['power'].ch_names
-    return tfr2df(tfr['power'], foi, channel, tmin=tmin, tmax=tmax, hash=tfr['events'][:,2])
-
-
-def from_pickle(filename, freq=(0, 100), channel=None, tmin=None, tmax=None):
-    tfr = cPickle.load(open(filename))
-    foi = tfr['power'].freqs
-    foi = foi[(freq[0] < foi) & (foi <freq[1])]
-    if channel is None:
-        channel = tfr['power'].ch_names
-    return tfr2df(tfr['power'], foi, channel, tmin=tmin, tmax=tmax, hash=tfr['events'][:,2])
-
-
-def tfr2df(tfr, freq, channel, tmin=None, tmax=None, hash=None):
+def get_tfrs(filenames, freq=(0, 100), channel=None, tmin=None, tmax=None):
     '''
-    Read out values for specific frequencies and channels from set of tfrs.
-
-    channels is a list of channel names.
-    freq is a list of frequencies
+    Load many saved tfrs and return as a data frame.
     '''
-    try:
-        channel = channel(tfr.ch_names)
-    except:
-        pass
-    freq = np.atleast_1d(freq)
-    if tmin is not None and tmax is not None:
-        tfr.crop(tmin, tmax)
-    ch_ids = np.where(np.in1d(tfr.ch_names, channel))[0]
-
-    ch_idx = np.in1d(np.arange(tfr.data.shape[1]), ch_ids)
-    freq_idx = np.in1d(tfr.freqs, freq)
-    tfr.data = tfr.data[:, ch_ids, :,:][:, :, np.where(freq_idx)[0], :]
-    print tfr.data.shape
-    tfr.freqs = tfr.freqs[freq_idx]
-    if hash is None:
-        trials = np.arange(tfr.data.shape[0])
-    else:
-        trials = hash
-
-    trials, channel, freq, time = np.meshgrid(trials, ch_ids.ravel(),
-                                              tfr.freqs.ravel(), tfr.times.ravel(),
-                                              indexing='ij')
-    assert trials.shape==tfr.data.shape
-    return pd.DataFrame({'trial':trials.ravel(), 'channel':channel.ravel(),
-        'freq':freq.ravel(), 'time':time.ravel(), 'power':tfr.data.ravel()})
+    dfs = []
+    for f in filenames:
+        try:
+            df = make_df(read_hdf5(f, freq=freq, channel=channel, tmin=tmin, tmax=tmax))
+            dfs.append(df)
+        except KeyError:
+            print 'No events in: ', f, 'Skipping this file'
+    dfs =  pd.concat(dfs)
+    dfs.columns.name = 'time'
+    return dfs
 
 
-def save_tfr(tfr, fname):
+def save_tfr(tfr, fname, events):
     from mne.externals import h5io
     h5io.write_hdf5(fname, {'data':tfr.data, 'freqs':tfr.freqs, 'times':tfr.times,
-        'comment':tfr.comment, 'info':tfr.info}, overwrite=True)
+        'comment':tfr.comment, 'info':tfr.info, 'events':events}, overwrite=True)
 
 
 def load_tfr(fname):
-    return mne.time_frequency.tfr.EpochsTFR(**h5io.read_hdf5(fname))
+    from mne.externals import h5io
+    data = h5io.read_hdf5(fname, freq=(-inf, inf), tmin=-inf, tmax=inf)
+    events = data['events']
+    del data['events']
+    return mne.time_frequency.tfr.EpochsTFR(**data), events
+
+
+def read_hdf5(fname, channel=None, freq=(0, 150), tmin=0, tmax=1, key='h5io'):
+    hdf = h5py.File(fname)[key]
+    keys = set(hdf.keys()) - set(['key_data', 'key_info'])
+    out = {}
+    for key in keys:
+        out[key.replace('key_', '')] = read(hdf[key])
+    out['info'] = read_info(hdf['key_info'])
+    freq_idx = np.where((freq[0] <= out['freqs']) & (out['freqs'] <= freq[1]))[0]
+    freq_idx = slice(min(freq_idx), max(freq_idx)+1)
+    out['freqs'] = out['freqs'][freq_idx]
+    time_idx = np.where((tmin <= out['times']) & (out['times'] <= tmax))[0]
+    time_idx = slice(min(time_idx), max(time_idx)+1)
+    out['times'] = out['times'][time_idx]
+
+    ch_names = np.array(out['info']['ch_names'])
+    if channel is None:
+        ch_id = arange(len(ch_names))
+    else:
+        try:
+            channel = channel(ch_names)
+        except TypeError:
+            pass
+        ch_id = np.in1d(ch_names, np.array(channel))
+    out['data'] = hdf['key_data'][:, ch_id, freq_idx, time_idx]
+    out['ch_id'] = np.where(ch_id)[0]
+    return out
+
+
+def make_df(out):
+    freq = out['freqs']
+    ch_ids = out['ch_id']
+    times = out['times']
+    trials = out['events'][:, 2]
+    trials, channel, freq = np.meshgrid(trials, ch_ids.ravel(),
+                                              freq.ravel(),
+                                              indexing='ij')
+    index = pd.MultiIndex.from_arrays([trials.ravel(), channel.ravel(),
+        freq.ravel()], names=['trial', 'channel', 'freq'])
+    data = {}
+    for t_idx, t in enumerate(times):
+        data[t] = out['data'][:,:,:,t_idx].ravel()
+    data = pd.DataFrame(data, index=index)
+    data.columns.time = 'time'
+    return data
+
+
+@memory.cache
+def read_info(hdf):
+    return read(hdf)
