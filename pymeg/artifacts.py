@@ -12,15 +12,15 @@ import mne
 import numpy as np
 import pandas as pd
 
-from meg.tools import hilbert
+from tools import hilbert
 
 
-def annotate_blinks(raw):
+def annotate_blinks(raw, ch_mapping={'x':'UADC002-3705', 'y':'UADC003-3705', 'p':'UADC004-3705'}):
     '''
     Detect blinks and annotate as bad blinks
     '''
     logging.info('Annotating blinks artifacts')
-    x, y, p = eye_voltage2gaze(raw)
+    x, y, p = eye_voltage2gaze(raw, ch_mapping=ch_mapping)
     xpos, ypos = x.ravel()/ppd(), y.ravel()/ppd()
     sc = saccade_detection(xpos, ypos, threshold=10, acc_thresh=2000, Hz=1200)
     blinks, scfilt = blink_detection(xpos, ypos, sc)
@@ -61,7 +61,7 @@ def annotate_jumps(raw, cutoff=25, allowed_before_bad=20):
     # Need to check for jumps_per_channel
     bads = [k for k, v in jumps_per_channel.iteritems() if v > allowed_before_bad]
     arts = [arts[k] for k, v in jumps_per_channel.iteritems() if v<= allowed_before_bad]
-    
+
     if len(bads)>0:
         if 'bads' in raw.info.keys():
             raw.info['bads'].extend(bads)
@@ -74,7 +74,7 @@ def annotate_jumps(raw, cutoff=25, allowed_before_bad=20):
     print arts
     arts = np.array(a)
     annotations = None
-    try: 
+    try:
         if len(arts)>0:
             annotations = mne.Annotations(arts[:,0], arts[:,1], 'bad jump')
     except IndexError:
