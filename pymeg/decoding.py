@@ -1,7 +1,7 @@
 '''
 Do some decoding stuff.
 '''
-from meg import preprocessing
+from pymeg import preprocessing
 from sklearn import cross_validation, svm, pipeline, preprocessing as skpre
 from sklearn import decomposition
 import numpy as np
