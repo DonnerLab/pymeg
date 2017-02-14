@@ -90,11 +90,12 @@ def get_tfrs(filenames, freq=(0, 100), channel=None, tmin=None, tmax=None):
     '''
     dfs = []
     for f in filenames:
-        try:
-            df = make_df(read_hdf5(f, freq=freq, channel=channel, tmin=tmin, tmax=tmax))
-            dfs.append(df)
-        except KeyError:
-            print 'No events in: ', f, 'Skipping this file'
+        #try:
+        df = make_df(read_hdf5(f, freq=freq, channel=channel, tmin=tmin, tmax=tmax))
+        dfs.append(df)
+        #except KeyError as e:
+        #
+        #    print 'No events in: ', f, 'Skipping this file'
     dfs =  pd.concat(dfs)
     dfs.columns.name = 'time'
     return dfs
@@ -108,7 +109,7 @@ def save_tfr(tfr, fname, events):
 
 def load_tfr(fname):
     from mne.externals import h5io
-    data = h5io.read_hdf5(fname, freq=(-inf, inf), tmin=-inf, tmax=inf)
+    data = h5io.read_hdf5(fname)#, freq=(-np.inf, np.inf), tmin=-np.inf, tmax=np.inf)
     events = data['events']
     del data['events']
     return mne.time_frequency.tfr.EpochsTFR(**data), events
@@ -120,25 +121,24 @@ def read_hdf5(fname, channel=None, freq=(0, 150), tmin=0, tmax=1, key='h5io'):
     out = {}
     for key in keys:
         out[key.replace('key_', '')] = read(hdf[key])
-    out['info'] = read_info(hdf['key_info'])
+    out['info'] = read_info(hdf['key_info'], fname)
     freq_idx = np.where((freq[0] <= out['freqs']) & (out['freqs'] <= freq[1]))[0]
     freq_idx = slice(min(freq_idx), max(freq_idx)+1)
     out['freqs'] = out['freqs'][freq_idx]
     time_idx = np.where((tmin <= out['times']) & (out['times'] <= tmax))[0]
     time_idx = slice(min(time_idx), max(time_idx)+1)
     out['times'] = out['times'][time_idx]
-
     ch_names = np.array(out['info']['ch_names'])
     if channel is None:
-        ch_id = arange(len(ch_names))
+        ch_id = np.arange(len(ch_names))
     else:
         try:
             channel = channel(ch_names)
         except TypeError:
             pass
-        ch_id = np.in1d(ch_names, np.array(channel))
+        ch_id = np.where(np.in1d(ch_names, np.array(channel)))[0]
     out['data'] = hdf['key_data'][:, ch_id, freq_idx, time_idx]
-    out['ch_id'] = np.where(ch_id)[0]
+    out['ch_id'] = ch_id
     return out
 
 
@@ -161,5 +161,5 @@ def make_df(out):
 
 
 @memory.cache
-def read_info(hdf):
+def read_info(hdf, fname):
     return read(hdf)
