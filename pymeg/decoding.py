@@ -6,7 +6,6 @@ from sklearn import cross_validation, svm, pipeline, preprocessing as skpre
 from sklearn import decomposition
 import numpy as np
 import pandas as pd
-from joblib import Memory
 
 
 sensors = dict(
@@ -76,7 +75,6 @@ def decode(classifier, data, labels, train_time, predict_times,
 
     for i, (train_indices, test_indices) in enumerate(cv(labels)):
         np.random.shuffle(train_indices)
-        fold = []
         clf = classifier()
         l1, l2 = np.unique(labels)
         l1 = train_indices[labels[train_indices]==l1]
