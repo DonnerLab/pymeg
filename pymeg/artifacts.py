@@ -55,7 +55,7 @@ def annotate_cars(raw, cutoff=4.0, der_cutoff=7.):
     return annotations, z, d
 
 
-def annotate_jumps(raw, cutoff=25, allowed_before_bad=20):
+def annotate_jumps(raw, cutoff=25, allowed_before_bad=np.inf):
     logging.info('Annotating jump artifacts')
     arts, z, jumps_per_channel = detect_jumps(raw.copy(), cutoff=cutoff)
     # Need to check for jumps_per_channel
@@ -71,7 +71,6 @@ def annotate_jumps(raw, cutoff=25, allowed_before_bad=20):
     for k in arts:
         if len(k) is not 0:
             a.extend(k)
-    print arts
     arts = np.array(a)
     annotations = None
     try:
@@ -194,9 +193,9 @@ def detect_jumps(raw, cutoff=25):
     #filt = mne.filter.low_pass_filter(raw._data, raw.info['sfreq'], 1)
     filt = mne.filter.filter_data(raw._data, raw.info['sfreq'], l_freq=None, h_freq=1)
 
-    jump_kernel = (np.array([1]*10),
-                   [0, 0, 0],
-                   np.array([-1]*10))
+    jump_kernel = (np.array([1]*50),
+                   [0, 0],
+                   np.array([-1]*50))
     jump_kernel = np.concatenate(jump_kernel)
     filt = 0*raw._data.copy()
     for i in range(filt.shape[0]):
