@@ -16,7 +16,7 @@ This leads to the following design:
     3. Data is epoched. Sync with meta data is guaranteed by a unique key for
        each trial that is stored along with the epoched data.
 '''
-
+from __future__ import division, print_function
 import mne
 import numpy as np
 import pandas as pd
@@ -158,10 +158,32 @@ def mne_events(data, time_field, event_val):
         data[event_val].values]).astype(int).T
 
 
+def ant2time_window(r, ant, onsets, epoch_time=(0, 1)):
+    '''
+    Create an annotation object that only contains events around time window.
+
+    onsets are given in samples as defined in timing structure.
+    '''
+    onsets = (onsets-r.first_samp)/r.info['sfreq']
+    onsets = onsets + epoch_time[0]
+    ends = onsets + epoch_time[1]
+    new_onset, new_duration, new_description = [], [], []
+    for ant_onset, ant_duration, description in zip(ant.onset, ant.duration,
+                                                    ant.description):
+        ant_end = ant_onset + ant_duration
+        if all((ant_end<onsets) | (ends < ant_onset)):
+            pass
+        else:
+            new_onset.append(ant_onset)
+            new_duration.append(ant_duration)
+            new_description.append(description)
+    return mne.annotations.Annotations(new_onset, new_duration, new_description)
+
+
 def get_epoch(raw, meta, timing,
               event='stim_onset_t', epoch_time=(-.2, 1.5),
               base_event='stim_onset_t', base_time=(-.2, 0),
-              epoch_label='hash'):
+              epoch_label='hash', reject_time=(None, None)):
     '''
     Cut out epochs from raw data and apply baseline correction.
 
@@ -174,7 +196,11 @@ def get_epoch(raw, meta, timing,
     base_event : Column in timing that contains baseline onsets in sample time
     base_time : (start, end) in sec. relative to baseline onset
     epoch_label : Column in meta that contains epoch labels.
+    reject_time : time window for rejection.
     '''
+    if reject_time[0] is None:
+        reject_time = epoch_time
+
     fields = set((event, base_event, epoch_label))
     all_meta = pd.concat([meta, timing], axis=1)
     joined_meta = (pd.concat([meta, timing], axis=1)
@@ -184,18 +210,28 @@ def get_epoch(raw, meta, timing,
     ev = mne_events(joined_meta, event, epoch_label)
     eb = mne_events(joined_meta, base_event, epoch_label)
 
-    picks = mne.pick_types(raw.info, meg=True, eeg=False, stim=False, eog=False, exclude='bads')
+    picks = mne.pick_types(raw.info, meg=True, eeg=False, stim=False,
+        eog=False, exclude='bads')
 
-    base = mne.Epochs(raw, eb, tmin=base_time[0], tmax=base_time[1], baseline=None, picks=picks,
+    base = mne.Epochs(raw, eb, tmin=base_time[0], tmax=base_time[1],
+            baseline=None, picks=picks,
             reject_by_annotation=True)
-    stim_period = mne.Epochs(raw, ev, tmin=epoch_time[0], tmax=epoch_time[1], baseline=None, picks=picks,
-            reject_by_annotation=True)
+
+    ants = raw.annotations
+    rt_ants = ant2time_window(raw, ants, ev[:, 0], reject_time)
+    print('Number of annotations that overlap:', len(rt_ants))
+    raw.annotations = rt_ants
+    stim_period = mne.Epochs(raw, ev, tmin=epoch_time[0], tmax=epoch_time[1],
+            baseline=None, picks=picks,
+            reject_by_annotation=True,
+            reject_tmin=reject_time[0], reject_tmax=reject_time[1])
     base.load_data()
     stim_period.load_data()
     stim_period, dl = apply_baseline(stim_period, base)
     # Now filter raw object to only those left.
     sei = stim_period.events[:, 2]
     meta = all_meta.reset_index().set_index(epoch_label).loc[sei]
+    raw.annotations = ants
     return meta, stim_period
 
 
@@ -210,8 +246,6 @@ def concat(raws, metas, timings):
     raw = raws[::-1].pop()
     raw.append(raws, preload=False)
     timings = [timing+offset for timing, offset in zip(timings, offsets)]
-    for t in timings:
-        print t.stim_onset_t.min()
     timings = pd.concat(timings)
     metas = pd.concat(metas)
     return raw, metas, timings
