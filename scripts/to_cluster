@@ -7,9 +7,9 @@ import os
 import subprocess
 
 
-def submit(walltime, cores, memory, cwd, script, name, env='none',
+def submit(walltime, memory, cwd,
+           script, name, nodes='1:ppn=1', env='none',
            shellfname='to_cluster.sh'):
-
     if env is 'none':
         command = '''
         #!/bin/bash
@@ -18,7 +18,7 @@ def submit(walltime, cores, memory, cwd, script, name, env='none',
 
         #PBS -q batch
         #PBS -l walltime={walltime}:00:00
-        #PBS -l nodes=1:ppn={cores}
+        #PBS -l nodes={nodes}
         #PBS -l mem={memory}gb
         #PBS -N {name}
         
@@ -34,13 +34,12 @@ def submit(walltime, cores, memory, cwd, script, name, env='none',
         # FILE TO EXECUTE
         {script} 1> {cwd}/cluster/$PBS_JOBID.out 2> {cwd}/cluster/$PBS_JOBID.err
         '''.format(**{'walltime': walltime,
-                      'cores': cores,
+                      'nodes': nodes,
                       'memory': memory,
                       'cwd': cwd,
                       'script': script,
                       'name': name})
     else:
-        print env
         command = '''
         #!/bin/bash
         # walltime: defines maximum lifetime of a job
@@ -48,7 +47,7 @@ def submit(walltime, cores, memory, cwd, script, name, env='none',
 
         #PBS -q batch
         #PBS -l walltime={walltime}:00:00
-        #PBS -l nodes=1:ppn={cores}
+        #PBS -l nodes={nodes}
         #PBS -l mem={memory}gb
         #PBS -N {name}
         
@@ -65,13 +64,12 @@ def submit(walltime, cores, memory, cwd, script, name, env='none',
         source activate {env}
         {script} 1> {cwd}/cluster/$PBS_JOBID.out 2> {cwd}/cluster/$PBS_JOBID.err
         '''.format(**{'walltime': walltime,
-                      'cores': cores,
+                      'nodes': nodes,
                       'memory': memory,
                       'cwd': cwd,
                       'script': script,
-                      'name': name, 
+                      'name': name,
                       'env': env})
-
     tmp = file(shellfname, 'w')
     tmp.write(command)
     tmp.close()
@@ -82,14 +80,17 @@ if __name__ == '__main__':
     # 2. Create workers
     parser = argparse.ArgumentParser()
     parser.add_argument("script", help='Which command to run?')
-    parser.add_argument("--cores", help="How many cores do you need?",
-                        type=int, default=1)
     parser.add_argument("--memory", help="How many GB ram?",
                         default=12, type=int)
     parser.add_argument("--walltime", help="Walltime (h)?",
                         default=15, type=int)
+    parser.add_argument("--nodes", help="Specifiy a list of nodes or the number of cores in PBS syntax",
+                        default='1:ppn=1', type=str)
     parser.add_argument("--array", help="Map scripts function to workers?",
                         default=False, action="store_true")
+    parser.add_argument("--filter", dest='filter',
+                        help="Only run an array job in filter is in job parameters",
+                        default=None)
     parser.add_argument("--nosubmit", dest='submit',
                         help="Do not submit to torque", default=True, action="store_false")
 
@@ -107,24 +108,29 @@ if __name__ == '__main__':
         args.name = args.script
     if not args.array:
         if args.submit:
-            submit(args.walltime, args.cores, args.memory,
-                   os.getcwd(), args.script, args.name, args.env)
+            submit(args.walltime, args.memory,
+                   os.getcwd(), args.script, args.name, args.nodes, args.env)
     else:
         '''
         Need to build script to execute.
         '''
+        import os
+        import sys
+        sys.path.append(os.getcwd())
         import tempfile
         pyfile = args.script.replace('.py', '')
         mod = __import__(pyfile)
         tmpdir = tempfile.mkdtemp(
             prefix='cluster_' + args.name, dir=os.getcwd())
-        for i, x in enumerate(mod.list_tasks(args.older)):
+        for i, x in enumerate(mod.list_tasks(args.older, filter=args.filter)):
             if type(x) == str:
                 x = '"' + x + '"'
             fname = os.path.join(tmpdir, 'job_%i.py' % i)
-            shellfname = fname.replace('.py', '.sh')
+            shellfname = os.path.join(tmpdir, 'job_%i.sh' % i)
             f = open(fname, 'w')
             script = """
+import os, sys
+sys.path.append(os.getcwd())
 print 'Parameters:', '%s', '%s'
 import %s
 %s.execute(%s)
@@ -134,5 +140,6 @@ import %s
             f.close()
             subprocess.call(['chmod', '-R', 'a+rwx', tmpdir])
             if args.submit:
-                submit(args.walltime, args.cores, args.memory,
-                       os.getcwd(), command, args.name, args.env, shellfname=shellfname)
+                submit(args.walltime, args.memory,
+                       os.getcwd(), command, args.name, args.nodes,
+                       args.env, shellfname=shellfname)
