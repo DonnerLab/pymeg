@@ -211,7 +211,7 @@ def concat(raws, metas, timings):
     raw.append(raws, preload=False)
     timings = [timing+offset for timing, offset in zip(timings, offsets)]
     for t in timings:
-        print t.stim_onset_t.min()
+        print(t.stim_onset_t.min())
     timings = pd.concat(timings)
     metas = pd.concat(metas)
     return raw, metas, timings

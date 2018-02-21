@@ -1,8 +1,6 @@
-import glob
-import mne, locale
+import mne
 import pandas as pd
 import numpy as np
-import cPickle
 import json
 
 import h5py
@@ -38,7 +36,7 @@ def describe_taper(foi=None, cycles=None, time_bandwidth=None, **kwargs):
     time = cycles/foi
     f_smooth = time_bandwidth/time
     data = zip(list(foi), list(cycles), list(time), list(f_smooth))
-    print tabulate(data,   headers=['Freq', 'Cycles', 't. window', 'F. smooth'])
+    print(tabulate(data,   headers=['Freq', 'Cycles', 't. window', 'F. smooth']))
 
 
 def params_from_json(filename):
@@ -95,7 +93,6 @@ def get_tfrs(filenames, freq=(0, 100), channel=None, tmin=None, tmax=None):
         dfs.append(df)
         #except KeyError as e:
         #
-        #    print 'No events in: ', f, 'Skipping this file'
     dfs =  pd.concat(dfs)
     dfs.columns.name = 'time'
     return dfs

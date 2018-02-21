@@ -12,7 +12,7 @@ import mne
 import numpy as np
 import pandas as pd
 
-from tools import hilbert
+from .tools import hilbert
 
 
 def annotate_blinks(raw, ch_mapping={'x':'UADC002-3705', 'y':'UADC003-3705', 'p':'UADC004-3705'}):
@@ -36,7 +36,7 @@ def annotate_muscle(raw, cutoff=10):
     try:
         arts, z = detect_muscle(raw.copy(), cutoff=cutoff)
     except MemoryError:
-        print 'Memory Error detected:', raw
+        print('Memory Error detected:', raw)
         raise RuntimeError('Memory error detected in annotate muscle: '+raw.info['filename'])
 
     annotations = None
@@ -71,7 +71,7 @@ def annotate_jumps(raw, cutoff=25, allowed_before_bad=20):
     for k in arts:
         if len(k) is not 0:
             a.extend(k)
-    print arts
+    print(arts)
     arts = np.array(a)
     annotations = None
     try:
