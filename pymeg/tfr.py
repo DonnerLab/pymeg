@@ -71,7 +71,7 @@ def tfr(filename, outstr='tfr.hdf', foi=None, cycles=None,
     '''
     from mne.time_frequency.tfr import _tfr_aux
 
-    outname = filename.replace('-epo.fif.gz', outstr)
+    outname = filename.replace('epo.fif.gz', outstr)
     epochs = mne.read_epochs(filename)
     power = epochs_tfr(epochs, foi=foi, cycles=cycles,
                        time_bandwidth=time_bandwidth,
@@ -82,14 +82,14 @@ def tfr(filename, outstr='tfr.hdf', foi=None, cycles=None,
 
 def epochs_tfr(epochs, foi=None, cycles=None, time_bandwidth=None,
                decim=10, n_jobs=4, **kwargs):
-    from mne.time_frequency.tfr import _compute_tfr
-    tfr_params = dict(n_cycles=cycles, n_jobs=n_jobs, use_fft=True,
-                      zero_mean=True, time_bandwidth=time_bandwidth)
-    power = _compute_tfr('multitaper', epochs, foi, decim, False, None, False,
-                         output='complex', **tfr_params)
+    from mne.time_frequency.tfr import tfr_multitaper
+    
+    power = tfr_multitaper(inst=epochs, freqs=foi, average=False,
+                     n_cycles=cycles, time_bandwidth=time_bandwidth, 
+                     use_fft=True, decim=decim, n_jobs=n_jobs, 
+                     return_itc=False, verbose=None)
     return power
-
-
+    
 def tiling_plot(foi=None, cycles=None, time_bandwidth=None, **kwargs):
     colors = sns.cubehelix_palette(len(foi), light=0.75,  start=.5, rot=-.75)
     if len(np.atleast_1d(cycles)) == 1:
@@ -156,7 +156,6 @@ def read_chunked_hdf(fname, epochs=None, channel=None,
                      freq=(0, 150), tmin=0, tmax=1, key='pymegtfr'):
     with h5py.File(fname) as file:
         hdf = file[key]
-
         out = {}
         out['freqs'] = hdf.attrs['freqs']
         out['times'] = hdf.attrs['times']
@@ -174,6 +173,8 @@ def read_chunked_hdf(fname, epochs=None, channel=None,
         out['times'] = out['times'][time_idx]
         if channel is None:
             ch_id = slice(None)
+        else:
+            ch_id = [np.where(out['channels'] == c)[0][0] for c in channel] 
         events, data = [], []
         if epochs is None:
             epochs = [int(i) for i in hdf.keys()]
@@ -182,15 +183,15 @@ def read_chunked_hdf(fname, epochs=None, channel=None,
             events.append(epoch)
         out['data'] = np.stack(data, 0)
         out['events'] = events
-        out['channels'] = out['channels']
+        out['channels'] = ch_id
     return out
-
-
+    
 def make_df(out):
     freq = out['freqs']
     ch_ids = np.array(out['channels'])
     times = out['times']
     trials = out['events']
+    
     trials, channel, freq = np.meshgrid(trials, ch_ids.ravel(),
                                         freq.ravel(),
                                         indexing='ij')

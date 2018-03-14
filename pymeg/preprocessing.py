@@ -68,13 +68,15 @@ def get_meta(raw, mapping, trial_pins, trial_start, trial_end, other_pins=None):
 
     events, _ = get_events(raw)
     events = events.astype(float)
+    
     if trial_start == trial_end:
         start = np.where(events[:, 2] == trial_start)[0]
         end = np.where(events[:, 2] == trial_end)[0]
-        start, end = start[:-1], end[1:]
+        end = np.concatenate((end[1:]-1, np.array([events.shape[0]])))
+
     else:
         start, end = get_trial_periods(events, trial_start, trial_end)
-
+    
     trials = []
     for i, (ts, te) in enumerate(zip(start, end)):
         current_trial = {}
@@ -93,7 +95,7 @@ def get_meta(raw, mapping, trial_pins, trial_start, trial_end, other_pins=None):
                         (trial_nums[:pstart], trial_nums[pend:]))
                     trial_times = np.concatenate(
                         (trial_times[:pstart], trial_times[pend:]))
-
+        
         for trigger, time in zip(trial_nums, trial_times):
             if trigger in mapping.keys():
                 key = mapping[trigger][0]
