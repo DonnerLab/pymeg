@@ -8,35 +8,68 @@ import subprocess
 
 
 def submit(walltime, memory, cwd,
-           script, name, nodes='1:ppn=1', shellfname='to_cluster.sh'):
-    command = '''
-    #!/bin/bash
-    # walltime: defines maximum lifetime of a job
-    # nodes/ppn: how many nodes (usually 1)? how many cores?
+           script, name, nodes='1:ppn=1', env='none',
+           shellfname='to_cluster.sh'):
+    if env is 'none':
+        command = '''
+        #!/bin/bash
+        # walltime: defines maximum lifetime of a job
+        # nodes/ppn: how many nodes (usually 1)? how many cores?
 
-    #PBS -q batch
-    #PBS -l walltime={walltime}:00:00
-    #PBS -l nodes={nodes}
-    #PBS -l mem={memory}gb
-    #PBS -N {name}
+        #PBS -q batch
+        #PBS -l walltime={walltime}:00:00
+        #PBS -l nodes={nodes}
+        #PBS -l mem={memory}gb
+        #PBS -N {name}
+        
+        cd {cwd}  
+        mkdir -p cluster
+        chmod a+rwx cluster
+        
+        #### set journal & error options
+        #PBS -o {cwd}/cluster/$PBS_JOBID.o
+        #PBS -e {cwd}/cluster/$PBS_JOBID.e
 
-    cd {cwd}
-    mkdir -p cluster
-    chmod a+rwx cluster
 
-    #### set journal & error options
-    #PBS -o {cwd}/cluster/$PBS_JOBID.o
-    #PBS -e {cwd}/cluster/$PBS_JOBID.e
+        # FILE TO EXECUTE
+        {script} 1> {cwd}/cluster/$PBS_JOBID.out 2> {cwd}/cluster/$PBS_JOBID.err
+        '''.format(**{'walltime': walltime,
+                      'nodes': nodes,
+                      'memory': memory,
+                      'cwd': cwd,
+                      'script': script,
+                      'name': name})
+    else:
+        command = '''
+        #!/bin/bash
+        # walltime: defines maximum lifetime of a job
+        # nodes/ppn: how many nodes (usually 1)? how many cores?
+
+        #PBS -q batch
+        #PBS -l walltime={walltime}:00:00
+        #PBS -l nodes={nodes}
+        #PBS -l mem={memory}gb
+        #PBS -N {name}
+        
+        cd {cwd}  
+        mkdir -p cluster
+        chmod a+rwx cluster
+        
+        #### set journal & error options
+        #PBS -o {cwd}/cluster/$PBS_JOBID.o
+        #PBS -e {cwd}/cluster/$PBS_JOBID.e
 
 
-    # FILE TO EXECUTE
-    {script} 1> {cwd}/cluster/$PBS_JOBID.out 2> {cwd}/cluster/$PBS_JOBID.err
-    '''.format(**{'walltime': walltime,
-                  'nodes': nodes,
-                  'memory': memory,
-                  'cwd': cwd,
-                  'script': script,
-                  'name': name})
+        # FILE TO EXECUTE
+        source activate {env}
+        {script} 1> {cwd}/cluster/$PBS_JOBID.out 2> {cwd}/cluster/$PBS_JOBID.err
+        '''.format(**{'walltime': walltime,
+                      'nodes': nodes,
+                      'memory': memory,
+                      'cwd': cwd,
+                      'script': script,
+                      'name': name,
+                      'env': env})
     tmp = file(shellfname, 'w')
     tmp.write(command)
     tmp.close()
@@ -66,6 +99,9 @@ if __name__ == '__main__':
     parser.add_argument("--redo-older", dest='older',
                         help="Redo all tasks where results are older than this Ymd date (e.g. 20160825). Only effective for array jobs.",
                         type=str, default='now')
+    parser.add_argument("--pyenv", default='none',
+                        help="Activate a different conda environment",
+                        type=str, dest='env')
 
     args = parser.parse_args()
     if args.name is None:
@@ -73,7 +109,7 @@ if __name__ == '__main__':
     if not args.array:
         if args.submit:
             submit(args.walltime, args.memory,
-                   os.getcwd(), args.script, args.name, args.nodes)
+                   os.getcwd(), args.script, args.name, args.nodes, args.env)
     else:
         '''
         Need to build script to execute.
@@ -91,8 +127,6 @@ if __name__ == '__main__':
                 x = '"' + x + '"'
             fname = os.path.join(tmpdir, 'job_%i.py' % i)
             shellfname = os.path.join(tmpdir, 'job_%i.sh' % i)
-
-            #fname.replace('.py', '.sh')
             f = open(fname, 'w')
             script = """
 import os, sys
@@ -108,4 +142,4 @@ import %s
             if args.submit:
                 submit(args.walltime, args.memory,
                        os.getcwd(), command, args.name, args.nodes,
-                       shellfname=shellfname)
+                       args.env, shellfname=shellfname)

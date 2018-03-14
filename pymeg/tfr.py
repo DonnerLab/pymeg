@@ -3,7 +3,6 @@ import mne
 import locale
 import pandas as pd
 import numpy as np
-import cPickle
 import json
 
 import h5py
@@ -43,8 +42,8 @@ def describe_taper(foi=None, cycles=None, time_bandwidth=None, **kwargs):
     '''
     from tabulate import tabulate
     data = taper_data(foi, cycles, time_bandwidth, **kwargs)
-    print tabulate(data,
-                   headers=['Freq', 'Cycles', 't. window', 'F. smooth'])
+    print(tabulate(data,
+                   headers=['Freq', 'Cycles', 't. window', 'F. smooth']))
 
 
 def get_smoothing(F, foi=None, cycles=None, time_bandwidth=None, **kwargs):
@@ -146,7 +145,6 @@ def get_tfrs(filenames, freq=(0, 100), channel=None, tmin=None, tmax=None,
         if baseline is not None:
             df = baseline(df)
         dfs.append(df)
-
     dfs = pd.concat(dfs)
     dfs.columns.name = 'time'
     return dfs

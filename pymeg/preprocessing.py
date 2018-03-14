@@ -218,7 +218,7 @@ def get_epoch(raw, meta, timing,
     ev = mne_events(joined_meta, event, epoch_label)
     eb = mne_events(joined_meta, base_event, epoch_label)
 
-    #picks = mne.pick_types(raw.info, meg=True, eeg=False, stim=True,
+    # picks = mne.pick_types(raw.info, meg=True, eeg=False, stim=True,
     #                       eog=True, chpi=True, emg=True, exclude='bads')
 
     picks = None
@@ -233,7 +233,7 @@ def get_epoch(raw, meta, timing,
     stim_period = mne.Epochs(raw, ev, tmin=epoch_time[0], tmax=epoch_time[1],
                              baseline=None, picks=picks,
                              reject_by_annotation=True,
-                             reject_tmin=reject_time[0], 
+                             reject_tmin=reject_time[0],
                              reject_tmax=reject_time[1])
     base.load_data()
     stim_period.load_data()
