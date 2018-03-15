@@ -27,9 +27,9 @@ except ImportError:
 
 
 def taper_data(foi=None, cycles=None, time_bandwidth=None, **kwargs):
+    foi = np.atleast_1d(foi)
     if len(np.atleast_1d(cycles)) == 1:
         cycles = [cycles] * len(foi)
-    foi = np.atleast_1d(foi)
     cycles = np.atleast_1d(cycles)
     time = cycles / foi
     f_smooth = time_bandwidth / time
@@ -80,13 +80,20 @@ def tfr(filename, outstr='tfr.hdf', foi=None, cycles=None,
     return power
 
 
-def epochs_tfr(epochs, foi=None, cycles=None, time_bandwidth=None,
-               decim=10, n_jobs=4, **kwargs):
+def epochs_tfr(epochs, sf=600, foi=None, cycles=None, time_bandwidth=None,
+               decim=10, n_jobs=4, output='power'):
     from mne.time_frequency.tfr import _compute_tfr
-    tfr_params = dict(n_cycles=cycles, n_jobs=n_jobs, use_fft=True,
-                      zero_mean=True, time_bandwidth=time_bandwidth)
-    power = _compute_tfr('multitaper', epochs, foi, decim, False, None, False,
-                         output='complex', **tfr_params)
+    #if len(epochs.shape) == 2:
+    #    epochs
+    power = _compute_tfr(epochs, foi, sfreq=sf,
+                         method='multitaper',
+                         decim=decim,
+                         n_cycles=cycles,
+                         zero_mean=True,
+                         time_bandwidth=time_bandwidth,
+                         n_jobs=4,
+                         use_fft=True,
+                         output=output)
     return power
 
 
@@ -140,16 +147,54 @@ def get_tfrs(filenames, freq=(0, 100), channel=None, tmin=None, tmax=None,
     '''
     dfs = []
     for f in filenames:
-        df = make_df(
-            read_chunked_hdf(f, freq=freq, channel=channel, tmin=tmin, tmax=tmax))
-        df.columns.name = 'time'
+        print 'Reading ', f
+        df = read_chunked_hdf(
+            f, freq=freq, channel=channel, tmin=tmin, tmax=tmax)
         if baseline is not None:
             df = baseline(df)
+        df = make_df(df)
+        df.columns.name = 'time'
         dfs.append(df)
 
     dfs = pd.concat(dfs)
     dfs.columns.name = 'time'
     return dfs
+
+
+def get_tfr_object(info, filenames, freq=(0, 100),
+                   channel=None, tmin=None, tmax=None):
+    '''
+    Load many saved tfrs and return as a data frame.
+
+    Inputs
+    ------
+        filenames: List of TFR filenames
+        freq:  tuple that specifies which frequencies to pull from TFR file.
+        channel: List of channels to include
+        tmin & tmax: which time points to include
+        baseline: If func it will be applied to each TFR file that is being loaded.
+    '''
+    dfs = []
+    for f in filenames:
+        print 'Reading ', f
+        df = read_chunked_hdf(
+            f, freq=freq, channel=channel, tmin=tmin, tmax=tmax)
+        dfs.append(df)
+
+    freqs = dfs[0]['freqs']
+    times = dfs[0]['times']
+    channels = dfs[0]['channels']
+    print dfs[0]['data'].shape
+    data = np.abs(np.concatenate([d['data'] for d in dfs]))**2
+    # Filter info down to correct channels
+    ids = [i for i, ch in enumerate(info['ch_names']) if ch in channels]
+    assert(all(channels == [info['ch_names'][i] for i in ids]))
+    info['ch_names'] = [info['ch_names'][i] for i in ids]
+    info['chs'] = [info['chs'][i] for i in ids]
+    info['nchan'] = len(channels)
+    info._check_consistency()
+    print data.shape, len(info['chs'])
+    return mne.time_frequency.EpochsTFR(info, data, times, freqs)
 
 
 def read_chunked_hdf(fname, epochs=None, channel=None,
