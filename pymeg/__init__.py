@@ -1,1 +1,1 @@
-import artifacts, decoding, preprocessing, tools, tfr
+from . import artifacts, decoding, preprocessing, tools, tfr
