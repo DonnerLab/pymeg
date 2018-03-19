@@ -103,6 +103,7 @@ def array_tfr(epochs, sf=600, foi=None, cycles=None, time_bandwidth=None,
                          n_jobs=4,
                          use_fft=True,
                          output=output)
+    return power
 
 
 def tiling_plot(foi=None, cycles=None, time_bandwidth=None, **kwargs):
