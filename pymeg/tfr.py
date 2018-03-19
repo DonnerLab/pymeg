@@ -83,13 +83,28 @@ def tfr(filename, outstr='tfr.hdf', foi=None, cycles=None,
 def epochs_tfr(epochs, foi=None, cycles=None, time_bandwidth=None,
                decim=10, n_jobs=4, **kwargs):
     from mne.time_frequency.tfr import tfr_multitaper
-    
+
     power = tfr_multitaper(inst=epochs, freqs=foi, average=False,
-                     n_cycles=cycles, time_bandwidth=time_bandwidth, 
-                     use_fft=True, decim=decim, n_jobs=n_jobs, 
-                     return_itc=False, verbose=None)
+                           n_cycles=cycles, time_bandwidth=time_bandwidth,
+                           use_fft=True, decim=decim, n_jobs=n_jobs,
+                           return_itc=False, verbose=None)
     return power
-    
+
+
+def array_tfr(epochs, sf=600, foi=None, cycles=None, time_bandwidth=None,
+              decim=10, n_jobs=4, output='power'):
+    from mne.time_frequency.tfr import _compute_tfr
+    power = _compute_tfr(epochs, foi, sfreq=sf,
+                         method='multitaper',
+                         decim=decim,
+                         n_cycles=cycles,
+                         zero_mean=True,
+                         time_bandwidth=time_bandwidth,
+                         n_jobs=4,
+                         use_fft=True,
+                         output=output)
+
+
 def tiling_plot(foi=None, cycles=None, time_bandwidth=None, **kwargs):
     colors = sns.cubehelix_palette(len(foi), light=0.75,  start=.5, rot=-.75)
     if len(np.atleast_1d(cycles)) == 1:
@@ -212,7 +227,7 @@ def read_chunked_hdf(fname, epochs=None, channel=None,
         if channel is None:
             ch_id = slice(None)
         else:
-            ch_id = [np.where(out['channels'] == c)[0][0] for c in channel] 
+            ch_id = [np.where(out['channels'] == c)[0][0] for c in channel]
         events, data = [], []
         if epochs is None:
             epochs = [int(i) for i in hdf.keys()]
@@ -223,13 +238,14 @@ def read_chunked_hdf(fname, epochs=None, channel=None,
         out['events'] = events
         out['channels'] = ch_id
     return out
-    
+
+
 def make_df(out):
     freq = out['freqs']
     ch_ids = np.array(out['channels'])
     times = out['times']
     trials = out['events']
-    
+
     trials, channel, freq = np.meshgrid(trials, ch_ids.ravel(),
                                         freq.ravel(),
                                         indexing='ij')
