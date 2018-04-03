@@ -112,7 +112,7 @@ def tiling_plot(foi=None, cycles=None, time_bandwidth=None, **kwargs):
 def save_tfr(tfr, fname, events):
     import h5py
     with h5py.File(fname, 'w') as file:
-        print 'Saving new format'
+        print('Saving new format')
         group = file.create_group('pymegtfr')
         group.attrs['freqs'] = tfr.freqs
         group.attrs['times'] = tfr.times
