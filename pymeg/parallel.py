@@ -11,12 +11,12 @@ import tempfile
 
 def submit(walltime, memory, cwd, tmpdir,
            script, name, nodes='1:ppn=1',
-           shellfname=None):
+           shellfname=None, env=None, ssh_to='node028'):
     '''
     Submit a script to torque
     '''
 
-    command = '''
+    cmd_top = '''
     #!/bin/bash
     # walltime: defines maximum lifetime of a job
     # nodes/ppn: how many nodes (usually 1)? how many cores?
@@ -35,7 +35,17 @@ def submit(walltime, memory, cwd, tmpdir,
     #PBS -o {cwd}/$PBS_JOBID.o
     #PBS -e {cwd}/$PBS_JOBID.e
 
+    '''.format(**{'walltime': walltime,
+                  'nodes': nodes,
+                  'memory': memory,
+                  'cwd': cwd,
+                  'script': script,
+                  'name': name})
 
+    if env is not None:
+        cmd_top += 'source activate %s\n' % env
+
+    cmd_bottom = '''
     # FILE TO EXECUTE
     {script} 1> {cwd}/$PBS_JOBID.out 2> {cwd}/$PBS_JOBID.err
     '''.format(**{'walltime': walltime,
@@ -44,12 +54,17 @@ def submit(walltime, memory, cwd, tmpdir,
                   'cwd': cwd,
                   'script': script,
                   'name': name})
+    command = cmd_top + cmd_bottom
     with tempfile.NamedTemporaryFile(delete=False, dir=tmpdir,
                                      prefix='delete_me_tmp') as shellfname:
         shellfname.write(command)
         shellfname = shellfname.name
+    if ssh_to is None:
+        "qsub %s" % (shellfname)
+    else:
+        "ssh %s 'qsub %s'" % (ssh_to, shellfname)
     output = subprocess.check_output(
-        "ssh node028 'qsub %s'" % shellfname,
+        command,
         stderr=subprocess.STDOUT,
         shell=True)
     return output
@@ -74,7 +89,7 @@ from %s import %s
 
 
 def pmap(func, args, walltime=12, memory=10, logdir=None, tmpdir=None,
-         name=None, nodes='1:ppn=1', verbose=True):
+         name=None, nodes='1:ppn=1', verbose=True, env=None, ssh_to='node028'):
     if name is None:
         name = func.__name__
     if logdir is None:
@@ -92,7 +107,7 @@ def pmap(func, args, walltime=12, memory=10, logdir=None, tmpdir=None,
         script = 'ipython ' + to_script(func, tmpdir, *arg)
         if verbose:
             print(arg, '->', script)
-        pid = submit(walltime, memory, logdir, tmpdir, script, name)
+        pid = submit(walltime, memory, logdir, tmpdir, script, name, env=env)
         out.append(pid)
     return out
 
