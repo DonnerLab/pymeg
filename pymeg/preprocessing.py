@@ -68,13 +68,15 @@ def get_meta(raw, mapping, trial_pins, trial_start, trial_end, other_pins=None):
 
     events, _ = get_events(raw)
     events = events.astype(float)
+    
     if trial_start == trial_end:
         start = np.where(events[:, 2] == trial_start)[0]
         end = np.where(events[:, 2] == trial_end)[0]
-        start, end = start[:-1], end[1:]
+        end = np.concatenate((end[1:]-1, np.array([events.shape[0]])))
+
     else:
         start, end = get_trial_periods(events, trial_start, trial_end)
-
+    
     trials = []
     for i, (ts, te) in enumerate(zip(start, end)):
         current_trial = {}
@@ -93,7 +95,7 @@ def get_meta(raw, mapping, trial_pins, trial_start, trial_end, other_pins=None):
                         (trial_nums[:pstart], trial_nums[pend:]))
                     trial_times = np.concatenate(
                         (trial_times[:pstart], trial_times[pend:]))
-
+        
         for trigger, time in zip(trial_nums, trial_times):
             if trigger in mapping.keys():
                 key = mapping[trigger][0]
@@ -260,7 +262,13 @@ def concat(raws, metas, timings):
 
 
 def apply_baseline(epochs, baseline):
+    '''
+    Apply baseline correction to M/EEG channels
+    '''
     drop_list = []
+    chidx = np.array(
+        [(x.startswith('M') or x.startswith('E'))
+         for x in epochs.ch_names]).astype(bool)
     for epoch, orig in enumerate(epochs.selection):
         # Find baseline epoch for this.
         base = np.where(baseline.selection == orig)[0]
@@ -268,8 +276,8 @@ def apply_baseline(epochs, baseline):
             # Reject this one.
             drop_list.append(epoch)
         else:
-            base_val = np.squeeze(baseline._data[base, :, :]).mean(1)
-            epochs._data[epoch, :, :] -= base_val[:, np.newaxis]
+            base_val = np.squeeze(baseline._data[base, chidx, :]).mean(1)
+            epochs._data[epoch, chidx, :] -= base_val[:, np.newaxis]
 
     return epochs.drop(drop_list), drop_list
 
@@ -306,14 +314,16 @@ def concatenate_epochs(epochs, metas):
     that of the first epoch.
     '''
     dev_head_t = epochs[0].info['dev_head_t']
-    index_cnt = 0
     epoch_arrays = []
     processed_metas = []
-    for e, m in zip(epochs, metas):
+    for e in ensure_iter(epochs):
         e.info['dev_head_t'] = dev_head_t
-        processed_metas.append(m)
         e = mne.epochs.EpochsArray(e._data, e.info, events=e.events)
         epoch_arrays.append(e)
+
+    for m in ensure_iter(metas):
+        processed_metas.append(m)
+
     return mne.concatenate_epochs(epoch_arrays), pd.concat(processed_metas)
 
 
@@ -354,3 +364,14 @@ def combine_annotations(annotations, first_samples, last_samples, sfreq):
                                        duration=np.concatenate(
                                            [ann.duration for ann in annotations]),
                                        description=np.concatenate([ann.description for ann in annotations]))
+
+
+def ensure_iter(input):
+    if isinstance(input, basestring):
+        yield input
+    else:
+        try:
+            for item in input:
+                yield item
+        except TypeError:
+            yield input
