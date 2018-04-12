@@ -193,16 +193,18 @@ def get_tfr_object(info, filenames, freq=(0, 100),
     freqs = dfs[0]['freqs']
     times = dfs[0]['times']
     channels = dfs[0]['channels']
-    print dfs[0]['data'].shape
     data = np.abs(np.concatenate([d['data'] for d in dfs]))**2
     # Filter info down to correct channels
-    ids = [i for i, ch in enumerate(info['ch_names']) if ch in channels]
-    assert(all(channels == [info['ch_names'][i] for i in ids]))
+    try:
+        ids = [i for i, ch in enumerate(info['ch_names']) if ch in channels]
+        assert(all(channels == [info['ch_names'][i] for i in ids]))
+    except TypeError:
+        ids = [i for i, ch in enumerate(info['ch_names']) if ch in info[
+            'ch_names'][channels] if ch.startswith('M')]
     info['ch_names'] = [info['ch_names'][i] for i in ids]
     info['chs'] = [info['chs'][i] for i in ids]
-    info['nchan'] = len(channels)
-    info._check_consistency()
-    print data.shape, len(info['chs'])
+    info['nchan'] = len(ids)
+    info._check_consistency()    
     return mne.time_frequency.EpochsTFR(info, data, times, freqs)
 
 
