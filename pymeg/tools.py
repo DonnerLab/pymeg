@@ -92,7 +92,10 @@ def hilbert(x, N=None):
 
     x = ifft(Xf * h)
     del Xf
-    cPickle.dump(pyfftw.export_wisdom(), open(cache, 'w'))
+    try:
+        cPickle.dump(pyfftw.export_wisdom(), open(cache, 'w'))
+    except:
+        print('Did not save wisdom cache')
     return x
 
 
