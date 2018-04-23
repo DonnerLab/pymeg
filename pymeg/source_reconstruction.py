@@ -26,19 +26,15 @@ from os.path import join
 import mne
 import pandas as pd
 import numpy as np
-
 from joblib import Memory
-from conf_analysis.behavior import metadata
 
-memory = Memory(cachedir=metadata.cachedir, verbose=0)
+memory = Memory(cachedir=os.environ['PYMEG_CACHE_DIR'], verbose=0)
 subjects_dir = os.environ['SUBJECTS_DIR']
-
 
 def set_fs_subjects_dir(directory):
     global subjects_dir
     os.environ['SUBJECTS_DIR'] = directory
     subjects_dir = directory
-
 
 #trans_dir = '/home/nwilming/conf_meg/trans'
 #plot_dir = '/home/nwilming/conf_analysis/plots/source'

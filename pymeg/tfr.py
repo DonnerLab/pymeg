@@ -74,7 +74,6 @@ def tfr(filename, outstr='tfr.hdf', foi=None, cycles=None,
     
     outname = filename.replace('epo.fif.gz', outstr)
     epochs = mne.read_epochs(filename)
-    
     if method == 'multitaper':
         power = tfr_multitaper(inst=epochs, freqs=foi, average=False,
                  n_cycles=cycles, time_bandwidth=time_bandwidth, 
@@ -85,9 +84,9 @@ def tfr(filename, outstr='tfr.hdf', foi=None, cycles=None,
                  n_cycles=cycles, output='power',
                  use_fft=False, decim=decim, n_jobs=n_jobs,
                  return_itc=False, **kwargs)
-    
     save_tfr(power, outname, epochs.events)
     return power
+
 
 def array_tfr(epochs, sf=600, foi=None, cycles=None, time_bandwidth=None,
               decim=10, n_jobs=4, output='power'):
