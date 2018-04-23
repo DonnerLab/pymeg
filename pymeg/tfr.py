@@ -74,6 +74,7 @@ def tfr(filename, outstr='tfr.hdf', foi=None, cycles=None,
     
     outname = filename.replace('epo.fif.gz', outstr)
     epochs = mne.read_epochs(filename)
+    
     if method == 'multitaper':
         power = tfr_multitaper(inst=epochs, freqs=foi, average=False,
                  n_cycles=cycles, time_bandwidth=time_bandwidth, 
@@ -84,19 +85,9 @@ def tfr(filename, outstr='tfr.hdf', foi=None, cycles=None,
                  n_cycles=cycles, output='power',
                  use_fft=False, decim=decim, n_jobs=n_jobs,
                  return_itc=False, **kwargs)
+    
     save_tfr(power, outname, epochs.events)
     return power
-    
-def epochs_tfr(epochs, foi=None, cycles=None, time_bandwidth=None,
-               decim=10, n_jobs=4, **kwargs):
-    from mne.time_frequency.tfr import tfr_multitaper
-
-    power = tfr_multitaper(inst=epochs, freqs=foi, average=False,
-                           n_cycles=cycles, time_bandwidth=time_bandwidth,
-                           use_fft=True, decim=decim, n_jobs=n_jobs,
-                           return_itc=False, verbose=None)
-    return power
-
 
 def array_tfr(epochs, sf=600, foi=None, cycles=None, time_bandwidth=None,
               decim=10, n_jobs=4, output='power'):
@@ -110,10 +101,8 @@ def array_tfr(epochs, sf=600, foi=None, cycles=None, time_bandwidth=None,
                          n_jobs=4,
                          use_fft=True,
                          output=output)
->>>>>>> d017e03530f99909dde7f8418e0de8064fae1928
     return power
-
-
+    
 def tiling_plot(foi=None, cycles=None, time_bandwidth=None, **kwargs):
     colors = sns.cubehelix_palette(len(foi), light=0.75,  start=.5, rot=-.75)
     if len(np.atleast_1d(cycles)) == 1:
