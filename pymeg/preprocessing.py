@@ -262,7 +262,13 @@ def concat(raws, metas, timings):
 
 
 def apply_baseline(epochs, baseline):
+    '''
+    Apply baseline correction to M/EEG channels
+    '''
     drop_list = []
+    chidx = np.array(
+        [(x.startswith('M') or x.startswith('E'))
+         for x in epochs.ch_names]).astype(bool)
     for epoch, orig in enumerate(epochs.selection):
         # Find baseline epoch for this.
         base = np.where(baseline.selection == orig)[0]
@@ -270,8 +276,8 @@ def apply_baseline(epochs, baseline):
             # Reject this one.
             drop_list.append(epoch)
         else:
-            base_val = np.squeeze(baseline._data[base, :, :]).mean(1)
-            epochs._data[epoch, :, :] -= base_val[:, np.newaxis]
+            base_val = np.squeeze(baseline._data[base, chidx, :]).mean(1)
+            epochs._data[epoch, chidx, :] -= base_val[:, np.newaxis]
 
     return epochs.drop(drop_list), drop_list
 
@@ -308,14 +314,16 @@ def concatenate_epochs(epochs, metas):
     that of the first epoch.
     '''
     dev_head_t = epochs[0].info['dev_head_t']
-    index_cnt = 0
     epoch_arrays = []
     processed_metas = []
-    for e, m in zip(epochs, metas):
+    for e in ensure_iter(epochs):
         e.info['dev_head_t'] = dev_head_t
-        processed_metas.append(m)
         e = mne.epochs.EpochsArray(e._data, e.info, events=e.events)
         epoch_arrays.append(e)
+
+    for m in ensure_iter(metas):
+        processed_metas.append(m)
+
     return mne.concatenate_epochs(epoch_arrays), pd.concat(processed_metas)
 
 
@@ -356,3 +364,14 @@ def combine_annotations(annotations, first_samples, last_samples, sfreq):
                                        duration=np.concatenate(
                                            [ann.duration for ann in annotations]),
                                        description=np.concatenate([ann.description for ann in annotations]))
+
+
+def ensure_iter(input):
+    if isinstance(input, basestring):
+        yield input
+    else:
+        try:
+            for item in input:
+                yield item
+        except TypeError:
+            yield input

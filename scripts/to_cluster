@@ -99,11 +99,14 @@ if __name__ == '__main__':
     parser.add_argument("--redo-older", dest='older',
                         help="Redo all tasks where results are older than this Ymd date (e.g. 20160825). Only effective for array jobs.",
                         type=str, default='now')
+    parser.add_argument('-D', action='append', default=[], 
+        help="Extra arguments to be passed to the executing function. E.g. -Dfoo=10 means foo=10")
     parser.add_argument("--pyenv", default='none',
                         help="Activate a different conda environment",
                         type=str, dest='env')
 
     args = parser.parse_args()
+    extra_args = dict(i.partition('=')[::2] for i in args.D)
     if args.name is None:
         args.name = args.script
     if not args.array:
@@ -122,7 +125,7 @@ if __name__ == '__main__':
         mod = __import__(pyfile)
         tmpdir = tempfile.mkdtemp(
             prefix='cluster_' + args.name, dir=os.getcwd())
-        for i, x in enumerate(mod.list_tasks(args.older, filter=args.filter)):
+        for i, x in enumerate(mod.list_tasks(**extra_args)):
             if type(x) == str:
                 x = '"' + x + '"'
             fname = os.path.join(tmpdir, 'job_%i.py' % i)
@@ -133,7 +136,7 @@ import os, sys
 sys.path.append(os.getcwd())
 print 'Parameters:', '%s', '%s'
 import %s
-%s.execute(%s)
+%s.execute(*%s)
             """ % (str(x).replace("'", ''), fname, pyfile, pyfile, str(x))
             command = 'python ' + fname
             f.write(script)
