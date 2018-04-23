@@ -387,7 +387,9 @@ def combine_annotations(annotations):
     '''
     Add annotations to a raw object. Makes sure that old annotations are kept.
     '''
-    if len(annotations) == 1:
+    if len(annotations) == 0:
+        return mne.Annotations(np.array([0]), np.array([0]), 'dummy')
+    elif len(annotations) == 1:
         return annotations[0]
     else:
         old = annotations[0]

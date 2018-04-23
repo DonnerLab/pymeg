@@ -14,7 +14,6 @@ from os.path import expanduser, join
 home = expanduser("~")
 
 from joblib import Memory
-
 memory = Memory(cachedir=join(home, 'cache_pymeg'), verbose=0)
 
 try:
@@ -65,29 +64,29 @@ def params_from_json(filename):
 
 
 def tfr(filename, outstr='tfr.hdf', foi=None, cycles=None,
-        time_bandwidth=None, decim=10, n_jobs=4, **kwargs):
+        time_bandwidth=None, decim=10, n_jobs=4, method='multitaper',
+        **kwargs):
     '''
     Run TFR decomposition with multitapers.
     '''
-    from mne.time_frequency.tfr import _tfr_aux
-
+    from mne.time_frequency.tfr import tfr_multitaper
+    from mne.time_frequency.tfr import tfr_morlet
+    
     outname = filename.replace('epo.fif.gz', outstr)
     epochs = mne.read_epochs(filename)
-    power = epochs_tfr(epochs, foi=foi, cycles=cycles,
-                       time_bandwidth=time_bandwidth,
-                       decim=decim, n_jobs=n_jobs, **kwargs)
-    save_tfr(power, outname, epochs.events)
-    return power
-
-
-def epochs_tfr(epochs, foi=None, cycles=None, time_bandwidth=None,
-               decim=10, n_jobs=4, **kwargs):
-    from mne.time_frequency.tfr import tfr_multitaper
     
-    power = tfr_multitaper(inst=epochs, freqs=foi, average=False,
-                     n_cycles=cycles, time_bandwidth=time_bandwidth, 
-                     use_fft=True, decim=decim, n_jobs=n_jobs, 
-                     return_itc=False, verbose=None)
+    if method == 'multitaper':
+        power = tfr_multitaper(inst=epochs, freqs=foi, average=False,
+                 n_cycles=cycles, time_bandwidth=time_bandwidth, 
+                 use_fft=True, decim=decim, n_jobs=n_jobs, 
+                 return_itc=False, **kwargs)
+    elif method == 'morlet':
+        power = tfr_morlet(inst=epochs, freqs=foi, average=False,
+                 n_cycles=cycles, output='power',
+                 use_fft=False, decim=decim, n_jobs=n_jobs,
+                 return_itc=False, **kwargs)
+    
+    save_tfr(power, outname, epochs.events)
     return power
     
 def tiling_plot(foi=None, cycles=None, time_bandwidth=None, **kwargs):
