@@ -4,6 +4,7 @@ from __future__ import print_function
 import mne
 import numpy as np
 import pandas as pd
+import os
 
 from . import source_reconstruction as sr
 from joblib import Memory
@@ -16,17 +17,16 @@ from . import tfr
 from itertools import izip
 
 
-memory = Memory(cachedir=metadata.cachedir)
+memory = Memory(cachedir=os.environ['PYMEG_CACHE_DIR'], verbose=0)
+
+@memory.cache
+def get_cov(epochs, tmin=0, tmax=1):
+    return compute_covariance(epochs, tmin=tmin, tmax=tmax, method='shrunk')
 
 
 @memory.cache
-def get_cov(epochs):
-    return compute_covariance(epochs, tmin=0, tmax=1, method='shrunk')
-
-
-@memory.cache
-def get_noise_cov(epochs):
-    return compute_covariance(epochs, tmin=-0.5, tmax=0, method='shrunk')
+def get_noise_cov(epochs, tmin=-0.5, tmax=0):
+    return compute_covariance(epochs, tmin=tmin, tmax=tmax, method='shrunk')
 
 
 def run_and_save(subject, filename, epochs, meta, srfilename,
@@ -96,7 +96,8 @@ def do_epochs(epochs, meta, forward, source, noise_cov, data_cov, labels,
             srcepoch = extract_labels_from_trial(
                 epoch, labels, int(trial), source)
             results.append(srcepoch)
-            accumulator.update(epoch)
+            if not accumulator is None:
+                accumulator.update(epoch)
             del epoch
         else:
             for keyname, values, function in func:
@@ -119,7 +120,8 @@ def do_epochs(epochs, meta, forward, source, noise_cov, data_cov, labels,
                     srcepoch['est_val'] = value
                     srcepoch['est_key'] = keyname
                     results.append(srcepoch)
-                    accumulator.update(keyname, value, new_epoch)
+                    if not accumulator is None:
+                        accumulator.update(keyname, value, new_epoch)
                     del new_epoch
                 del transformed
             del epoch

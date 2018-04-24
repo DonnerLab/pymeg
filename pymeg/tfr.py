@@ -14,7 +14,8 @@ from os.path import expanduser, join
 home = expanduser("~")
 
 from joblib import Memory
-memory = Memory(cachedir=join(home, 'cache_pymeg'), verbose=0)
+import os
+memory = Memory(cachedir=os.environ['PYMEG_CACHE_DIR'], verbose=0)
 
 try:
     import seaborn as sns

@@ -24,9 +24,9 @@ from pymeg.tools import hilbert
 from pymeg import artifacts
 import logging
 from joblib import Memory
+import os
 
-
-memory = Memory(cachedir='/tmp/')
+memory = Memory(cachedir=os.environ['PYMEG_CACHE_DIR'], verbose=0)
 
 
 def get_trial_periods(events, trial_start, trial_end):
