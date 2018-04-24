@@ -72,7 +72,7 @@ def get_trans(subject, session):
 
 
 @memory.cache
-def get_info(filename):
+def get_info(raw_filename, epochs_filename):
     '''
     Return an info dict for a measurement from one subject/session.
 
@@ -81,12 +81,12 @@ def get_info(filename):
     Path of a data set for subject/session.
     '''
     trans, fiducials, info = get_head_correct_info(
-        subject, session)
+        raw_filename, epochs_filename)
     return info
 
 
 @memory.cache
-def get_leadfield(subject, filename, conductivity):
+def get_leadfield(subject, raw_filename, epochs_filename, trans_filename, conductivity=(0.3, 0.006, 0.3)):
     '''
     Compute leadfield with presets for this subject
 
@@ -96,25 +96,25 @@ def get_leadfield(subject, filename, conductivity):
 
     '''
     src = get_source_space(subject)
-    model = make_fieldtrip_bem_model(
+    model = make_bem_model(
         subject=subject,
         ico=None,
         conductivity=conductivity,
         subjects_dir=subjects_dir)
     bem = mne.make_bem_solution(model)
-    trans = get_trans(filename)
-    info = get_info(filename)
+    #trans = get_trans(filename)
+    info = get_info(raw_filename, epochs_filename)
 
     fwd = mne.make_forward_solution(
         info,
-        trans=trans,
+        trans=trans_filename,
         src=src,
         bem=bem,
         meg=True,
         eeg=False,
         mindist=5.0,
         n_jobs=2)
-    return fwd, bem, fwd['src'], trans
+    return fwd, bem, fwd['src']
 
 
 def make_bem_model(subject, ico=4, conductivity=(0.3, 0.006, 0.3),
