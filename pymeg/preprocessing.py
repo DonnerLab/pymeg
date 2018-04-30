@@ -68,15 +68,15 @@ def get_meta(raw, mapping, trial_pins, trial_start, trial_end, other_pins=None):
 
     events, _ = get_events(raw)
     events = events.astype(float)
-    
+
     if trial_start == trial_end:
         start = np.where(events[:, 2] == trial_start)[0]
         end = np.where(events[:, 2] == trial_end)[0]
-        end = np.concatenate((end[1:]-1, np.array([events.shape[0]])))
+        end = np.concatenate((end[1:] - 1, np.array([events.shape[0]])))
 
     else:
         start, end = get_trial_periods(events, trial_start, trial_end)
-    
+
     trials = []
     for i, (ts, te) in enumerate(zip(start, end)):
         current_trial = {}
@@ -95,7 +95,7 @@ def get_meta(raw, mapping, trial_pins, trial_start, trial_end, other_pins=None):
                         (trial_nums[:pstart], trial_nums[pend:]))
                     trial_times = np.concatenate(
                         (trial_times[:pstart], trial_times[pend:]))
-        
+
         for trigger, time in zip(trial_nums, trial_times):
             if trigger in mapping.keys():
                 key = mapping[trigger][0]
@@ -306,13 +306,17 @@ def concatenate_epochs(epochs, metas):
     processed_metas = []
     for e in ensure_iter(epochs):
         e.info['dev_head_t'] = dev_head_t
-        e = mne.epochs.EpochsArray(e._data, e.info, events=e.events)
+        e = mne.epochs.EpochsArray(e._data, e.info,
+                                   events=e.events, tmin=e.tmin)
         epoch_arrays.append(e)
 
-    for m in ensure_iter(metas):
-        processed_metas.append(m)
+    if metas is not None:
+        for m in ensure_iter(metas):
+            processed_metas.append(m)
 
-    return mne.concatenate_epochs(epoch_arrays), pd.concat(processed_metas)
+        return mne.concatenate_epochs(epoch_arrays), pd.concat(processed_metas)
+    else:
+        return mne.concatenate_epochs(epoch_arrays)
 
 
 def combine_annotations(annotations, first_samples, last_samples, sfreq):
