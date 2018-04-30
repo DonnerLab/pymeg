@@ -26,11 +26,12 @@ from os.path import join
 import mne
 import pandas as pd
 import numpy as np
-
 from joblib import Memory
-from conf_analysis.behavior import metadata
 
-memory = Memory(cachedir=metadata.cachedir, verbose=0)
+from . import preprocessing
+
+
+memory = Memory(cachedir=os.environ['PYMEG_CACHE_DIR'], verbose=0)
 subjects_dir = os.environ['SUBJECTS_DIR']
 
 
@@ -38,10 +39,6 @@ def set_fs_subjects_dir(directory):
     global subjects_dir
     os.environ['SUBJECTS_DIR'] = directory
     subjects_dir = directory
-
-
-#trans_dir = '/home/nwilming/conf_meg/trans'
-#plot_dir = '/home/nwilming/conf_analysis/plots/source'
 
 
 def check_bems(subjects):
@@ -75,7 +72,7 @@ def get_trans(subject, session):
 
 
 @memory.cache
-def get_info(filename):
+def get_info(raw_filename, epochs_filename):
     '''
     Return an info dict for a measurement from one subject/session.
 
@@ -84,12 +81,12 @@ def get_info(filename):
     Path of a data set for subject/session.
     '''
     trans, fiducials, info = get_head_correct_info(
-        subject, session)
+        raw_filename, epochs_filename)
     return info
 
 
 @memory.cache
-def get_leadfield(subject, filename, conductivity):
+def get_leadfield(subject, raw_filename, epochs_filename, trans_filename, conductivity=(0.3, 0.006, 0.3)):
     '''
     Compute leadfield with presets for this subject
 
@@ -99,29 +96,29 @@ def get_leadfield(subject, filename, conductivity):
 
     '''
     src = get_source_space(subject)
-    model = make_fieldtrip_bem_model(
+    model = make_bem_model(
         subject=subject,
         ico=None,
         conductivity=conductivity,
         subjects_dir=subjects_dir)
     bem = mne.make_bem_solution(model)
-    trans = get_trans(filename)
-    info = get_info(filename)
+    #trans = get_trans(filename)
+    info = get_info(raw_filename, epochs_filename)
 
     fwd = mne.make_forward_solution(
         info,
-        trans=trans,
+        trans=trans_filename,
         src=src,
         bem=bem,
         meg=True,
         eeg=False,
         mindist=5.0,
         n_jobs=2)
-    return fwd, bem, fwd['src'], trans
+    return fwd, bem, fwd['src']
 
 
 def make_bem_model(subject, ico=4, conductivity=(0.3, 0.006, 0.3),
-                             subjects_dir=None, verbose=None, bem_sub_path='bem_ft'):
+                   subjects_dir=None, verbose=None, bem_sub_path='bem_ft'):
     """Create a BEM model for a subject.
 
     Copied from MNE python, adapted to read surface from fieldtrip / spm
@@ -190,27 +187,27 @@ Transformation matrix MEG<>T1 space.
 
 
 @memory.cache
-def get_head_correct_info(filename, N=-1):
-    trans = get_ctf_trans(filename)
-    fiducials = get_ref_head_pos(filename, trans, N=N)
-    raw = mne.io.ctf.read_raw_ctf(filename)
+def get_head_correct_info(raw_filename, epoch_filename, N=-1):
+    trans = get_ctf_trans(raw_filename)
+    fiducials = get_ref_head_pos(epoch_filename, trans, N=N)
+    raw = mne.io.ctf.read_raw_ctf(raw_filename)
     info = replace_fiducials(raw.info, fiducials)
     return trans, fiducials, info
 
 
-def make_trans(subject, filename, trans_name):
+def make_trans(subject, raw_filename, epoch_filename, trans_name):
     '''
     Create coregistration between MRI and MEG space.
     '''
     import os
     import time
     import tempfile
-    trans, fiducials, info = get_head_correct_info(filename)
+    trans, fiducials, info = get_head_correct_info(raw_filename, epoch_filename)
 
-    with tempfile.NamedTemporaryFile() as hs_ref:
+    with tempfile.NamedTemporaryFile(suffix='.fif') as hs_ref:
         # hs_ref = '/home/nwilming/conf_meg/trans/S%i-SESS%i.fif' % (
         #    subject, session)
-        mne.io.meas_info.write_info(hs_ref, info)
+        mne.io.meas_info.write_info(hs_ref.name, info)
 
         if os.path.isfile(trans_name):
             raise RuntimeError(
@@ -221,10 +218,10 @@ def make_trans(subject, filename, trans_name):
         print(trans_name)
 
         cmd = 'mne coreg --high-res-head -d %s -s %s -f %s' % (
-            '/home/nwilming/fs_subject_dir', 'S%02i' % subject, hs_ref)
+            subjects_dir, subject, hs_ref.name)
         print cmd
         os.system(cmd)
-        mne.gui.coregistration(inst=hs_ref, subject,
+        mne.gui.coregistration(subject, inst=hs_ref.name,
                                subjects_dir=subjects_dir)
         while not os.path.isfile(trans_name):
             print('Waiting for transformation matrix to appear')
@@ -234,7 +231,7 @@ def make_trans(subject, filename, trans_name):
 @memory.cache
 def get_ref_head_pos(filename,  trans, N=-1):
     from mne.transforms import apply_trans
-    data = pymegprepr.load_epochs([data])[0]
+    data = preprocessing.load_epochs([filename])[0]
     cc = head_loc(data.decimate(10))
     nasion = np.stack([c[0] for c in cc[:N]]).mean(0)
     lpa = np.stack([c[1] for c in cc[:N]]).mean(0)

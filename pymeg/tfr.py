@@ -14,7 +14,8 @@ from os.path import expanduser, join
 home = expanduser("~")
 
 from joblib import Memory
-memory = Memory(cachedir=join(home, 'cache_pymeg'), verbose=0)
+import os
+memory = Memory(cachedir=os.environ['PYMEG_CACHE_DIR'], verbose=0)
 
 try:
     import seaborn as sns
@@ -26,13 +27,15 @@ except ImportError:
 
 
 def taper_data(foi=None, cycles=None, time_bandwidth=None, **kwargs):
-    foi = np.atleast_1d(foi)
+    foi = np.atleast_1d(foi).astype(float)
     if len(np.atleast_1d(cycles)) == 1:
-        cycles = [cycles] * len(foi)
-    cycles = np.atleast_1d(cycles)
+        cycles = [cycles] * len(foi)        
+    cycles = np.atleast_1d(cycles).astype(float)
+    if len(np.atleast_1d(time_bandwidth)) == 1:
+        time_bandwidth = np.array([time_bandwidth] * len(foi))
     time = cycles / foi
     f_smooth = time_bandwidth / time
-    return zip(list(foi), list(cycles), list(time), list(f_smooth))
+    return zip(list(foi), list(cycles), list(time), list(f_smooth), list(time_bandwidth))
 
 
 def describe_taper(foi=None, cycles=None, time_bandwidth=None, **kwargs):
@@ -43,7 +46,7 @@ def describe_taper(foi=None, cycles=None, time_bandwidth=None, **kwargs):
     from tabulate import tabulate
     data = taper_data(foi, cycles, time_bandwidth, **kwargs)
     print tabulate(data,
-                   headers=['Freq', 'Cycles', 't. window', 'F. smooth'])
+                   headers=['Freq', 'Cycles', 't. window', 'F. smooth', '#Tapers+1'])
 
 
 def get_smoothing(F, foi=None, cycles=None, time_bandwidth=None, **kwargs):
@@ -74,7 +77,6 @@ def tfr(filename, outstr='tfr.hdf', foi=None, cycles=None,
     
     outname = filename.replace('epo.fif.gz', outstr)
     epochs = mne.read_epochs(filename)
-    
     if method == 'multitaper':
         power = tfr_multitaper(inst=epochs, freqs=foi, average=False,
                  n_cycles=cycles, time_bandwidth=time_bandwidth, 
@@ -85,9 +87,9 @@ def tfr(filename, outstr='tfr.hdf', foi=None, cycles=None,
                  n_cycles=cycles, output='power',
                  use_fft=False, decim=decim, n_jobs=n_jobs,
                  return_itc=False, **kwargs)
-    
     save_tfr(power, outname, epochs.events)
     return power
+
 
 def array_tfr(epochs, sf=600, foi=None, cycles=None, time_bandwidth=None,
               decim=10, n_jobs=4, output='power'):
