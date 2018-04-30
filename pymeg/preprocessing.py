@@ -170,16 +170,17 @@ def ant2time_window(r, ant, onsets, epoch_time=(0, 1)):
     '''
     Create an annotation object that only contains events around time window.
 
-    onsets are given in samples as defined in timing structure.
+    onsets are event onsets given in samples as defined in timing structure.
     '''
     onsets = (onsets - r.first_samp) / r.info['sfreq']
-    onsets = onsets + epoch_time[0]
-    ends = onsets + epoch_time[1]
+    event_starts = onsets + epoch_time[0]
+    event_ends = onsets + epoch_time[1]
     new_onset, new_duration, new_description = [], [], []
+
     for ant_onset, ant_duration, description in zip(ant.onset, ant.duration,
                                                     ant.description):
         ant_end = ant_onset + ant_duration
-        if all((ant_end < onsets) | (ends < ant_onset)):
+        if all((ant_end < event_starts) | (event_ends < ant_onset)):
             pass
         else:
             new_onset.append(ant_onset)
