@@ -256,6 +256,33 @@ def eye_voltage2gaze(raw, ranges=(-5, 5), screen_x=(0, 1920),
     return x, y, p
 
 
+def eye_voltage2gaze_epochs(epochs, ranges=(-5, 5), screen_x=(0, 1920),
+                            screen_y=(0, 1080),
+                            ch_mapping={'x': 'UADC002-3705', 'y': 'UADC003-3705', 'p': 'UADC004-3705'}):
+    '''
+    Convert analog output of EyeLink 1000+ to gaze coordinates.
+    '''
+    minvoltage, maxvoltage = ranges
+    maxrange, minrange = 1., 0.
+    screenright, screenleft = screen_x
+    screenbottom, screentop = screen_y
+
+    idx = np.where(np.array(epochs.ch_names) == ch_mapping['x'])[0][0]
+    R = (epochs._data[:, idx, :].squeeze() -
+         minvoltage) / (maxvoltage - minvoltage)
+    S = R * (maxrange - minrange) + minrange
+    x = S * (screenright - screenleft + 1) + screenleft
+
+    idy = np.where(np.array(epochs.ch_names) == ch_mapping['y'])[0][0]
+    R = (epochs._data[:, idy, :].squeeze() -
+         minvoltage) / (maxvoltage - minvoltage)
+    S = R * (maxrange - minrange) + minrange
+    y = S * (screenbottom - screentop + 1) + screentop
+
+    idp = np.where(np.array(epochs.ch_names) == ch_mapping['p'])[0][0]
+    p = epochs._data[:, idp:].squeeze()
+    return x, y, p
+
 velocity_window_size = 3
 
 
