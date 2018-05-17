@@ -2,36 +2,40 @@
 Do some decoding stuff.
 '''
 from pymeg import preprocessing
-from sklearn import cross_validation, svm, pipeline, preprocessing as skpre
+from sklearn import svm, pipeline, preprocessing as skpre
 from sklearn import decomposition
+from sklearn import model_selection
+
 import numpy as np
 import pandas as pd
 
 
 sensors = dict(
-        all= lambda x:x,
-        occipital= lambda x:[ch for ch in x if ch.startswith('MLO') or ch.startswith('MRO')],
-        posterior= lambda x:[ch for ch in x if ch.startswith('MLP') or ch.startswith('MRP')],
-        central= lambda x:[ch for ch in x if ch.startswith('MLC')
-            or ch.startswith('MRC') or ch.startswith('MZC')],
-        frontal= lambda x:[ch for ch in x if ch.startswith('MLF')
-            or ch.startswith('MRF') or ch.startswith('MZF')],
-        temporal= lambda x:[ch for ch in x if ch.startswith('MLT') or ch.startswith('MRT')])
+    all=lambda x: x,
+    occipital=lambda x: [ch for ch in x if ch.startswith(
+        'MLO') or ch.startswith('MRO')],
+    posterior=lambda x: [ch for ch in x if ch.startswith(
+        'MLP') or ch.startswith('MRP')],
+    central=lambda x: [ch for ch in x if ch.startswith('MLC')
+                       or ch.startswith('MRC') or ch.startswith('MZC')],
+    frontal=lambda x: [ch for ch in x if ch.startswith('MLF')
+                       or ch.startswith('MRF') or ch.startswith('MZF')],
+    temporal=lambda x: [ch for ch in x if ch.startswith('MLT') or ch.startswith('MRT')])
 
 
 def clf():
     return pipeline.Pipeline([
-            ('scale', skpre.StandardScaler()),
-            ('PCA', decomposition.PCA(n_components=.99)),
-            ('SVM', svm.LinearSVC())])
+        ('scale', skpre.StandardScaler()),
+        ('PCA', decomposition.PCA(n_components=.99)),
+        ('SVM', svm.LinearSVC())])
+
 
 def cv(x):
-    return cross_validation.StratifiedShuffleSplit(x, n_iter=10, test_size=0.1)
-
+    return model_selection.StratifiedShuffleSplit(x, n_iter=10, test_size=0.1)
 
 
 def decode(classifier, data, labels, train_time, predict_times,
-        cv=cross_validation.StratifiedKFold, collapse=np.mean):
+           cv=model_selection.StratifiedKFold, collapse=np.mean):
     '''
     Apply a classifier to data and predict labels with cross validation.
     Train classifier from data at data[:, :, train_time] and apply to all
@@ -67,19 +71,19 @@ def decode(classifier, data, labels, train_time, predict_times,
     # With only one label no decoding is possible.
     if len(np.unique(labels)) == 1:
         return pd.DataFrame({
-            'fold':[np.nan],
-            'train_time':[np.nan],
-            'predict_time':[np.nan],
-            'accuracy':[np.nan]
-            })
+            'fold': [np.nan],
+            'train_time': [np.nan],
+            'predict_time': [np.nan],
+            'accuracy': [np.nan]
+        })
 
     for i, (train_indices, test_indices) in enumerate(cv(labels)):
         np.random.shuffle(train_indices)
         clf = classifier()
         l1, l2 = np.unique(labels)
-        l1 = train_indices[labels[train_indices]==l1]
-        l2 = train_indices[labels[train_indices]==l2]
-        if len(l1)>len(l2):
+        l1 = train_indices[labels[train_indices] == l1]
+        l2 = train_indices[labels[train_indices] == l2]
+        if len(l1) > len(l2):
             l1 = l1[:len(l2)]
         else:
             l2 = l2[:len(l1)]
@@ -89,19 +93,21 @@ def decode(classifier, data, labels, train_time, predict_times,
         train = data[train_indices, :, train_time]
         if len(train.shape) == 3:
             if collapse == 'reshape':
-                train = train.reshape((train.shape[0], np.prod(train.shape[1:])))
+                train = train.reshape(
+                    (train.shape[0], np.prod(train.shape[1:])))
             else:
                 train = collapse(train, axis=2)
             train_time = train_time.stop
 
-        clf=clf.fit(train, labels[train_indices])
+        clf = clf.fit(train, labels[train_indices])
 
         for pt in predict_times:
             fold_result = {}
             test = data[test_indices, :, pt]
             if len(test.shape) == 3:
                 if collapse == 'reshape':
-                    test = test.reshape((test.shape[0], np.prod(test.shape[1:])))
+                    test = test.reshape(
+                        (test.shape[0], np.prod(test.shape[1:])))
                 else:
                     test = collapse(test, axis=2)
                 fold_result['predict_time'] = pt.stop
@@ -109,7 +115,7 @@ def decode(classifier, data, labels, train_time, predict_times,
                 fold_result['predict_time'] = pt
             fold_result['train_time'] = train_time
             fold_result.update({
-                'fold':i,
+                'fold': i,
                 'accuracy': clf.score(test, labels[test_indices])})
             results.append(fold_result)
     return pd.DataFrame(results)
@@ -136,13 +142,14 @@ def generalization_matrix(epochs, labels, dt, classifier=clf, cv=cv, slices=Fals
     data = epochs._data
     sfreq = epochs.info['sfreq']
 
-    tlen = data.shape[-1]/(float(sfreq)/1000.)
-    nsteps = np.around(float(tlen)/dt)
+    tlen = data.shape[-1] / (float(sfreq) / 1000.)
+    nsteps = np.around(float(tlen) / dt)
     #steps = np.linspace(0, data.shape[-1]-1, nsteps).astype(int)
-    steps = np.arange(0, data.shape[-1], int(data.shape[-1]/nsteps))
+    steps = np.arange(0, data.shape[-1], int(data.shape[-1] / nsteps))
     if slices:
         steps = [slice(s, e) for s, e in zip(steps[0:-1], steps[1:])]
-        decoder = lambda x: decode(clf, data, labels, x, steps, cv=cv, collapse=slices)
+        decoder = lambda x: decode(
+            clf, data, labels, x, steps, cv=cv, collapse=slices)
     else:
         decoder = lambda x: decode(clf, data, labels, x, steps, cv=cv)
     return pd.concat([decoder(tt) for tt in steps])
@@ -168,7 +175,8 @@ def apply_decoder(func, snum, epoch, label, channels=sensors['all']):
     Which column in the metadata to use for decoding. Labels will recoded to
     0-(num_classes-1).
     '''
-    s, m = preprocessing.get_epochs_for_subject(snum, epoch) #This will cache.
+    s, m = preprocessing.get_epochs_for_subject(
+        snum, epoch)  # This will cache.
     s = s.pick_channels(channels(s.ch_names))
 
     # Drop nan labels
@@ -181,7 +189,8 @@ def apply_decoder(func, snum, epoch, label, channels=sensors['all']):
     # Sort order index to align epochs with labels.
     m = m.loc[s.events[:, 2]]
     if not all(s.events[:, 2] == m.index.values):
-        raise RuntimeError('Indices of epochs and meta do not match! Task: ' + str(snum) + ' ' + epoch + ' ' + label)
+        raise RuntimeError('Indices of epochs and meta do not match! Task: ' +
+                           str(snum) + ' ' + epoch + ' ' + label)
     # Recode labels to 0-(n-1)
     labels = m.loc[:, label]
     labels = skpre.LabelEncoder().fit(labels).transform(labels)
