@@ -86,14 +86,27 @@ def get_info(raw_filename, epochs_filename):
 
 
 @memory.cache
-def get_leadfield(subject, raw_filename, epochs_filename, trans_filename, conductivity=(0.3, 0.006, 0.3)):
+def get_leadfield(subject, raw_filename, epochs_filename, trans_filename,
+                  conductivity=(0.3, 0.006, 0.3)):
     '''
     Compute leadfield with presets for this subject
 
-    Parameters
+    Arguments
+    ----------
         subject : string
-        filename : string
+        raw_filename : str
+            Filename that points to the raw data for this lead field.
+            This file will be used to extract a CTF transformation matrix
+            and an info struct.
+        epochs_filename : str
+            Filename from which fiducial locations will be extracted.
+        trans_filename : str
+            Points to transformation file between fiducials and MRI.
+        conductivity : 3-tuple of conductivities for BEM model
 
+    Returns
+    -------
+        Tuple of (forward model, BEM model, source space)
     '''
     src = get_source_space(subject)
     model = make_bem_model(
@@ -102,9 +115,7 @@ def get_leadfield(subject, raw_filename, epochs_filename, trans_filename, conduc
         conductivity=conductivity,
         subjects_dir=subjects_dir)
     bem = mne.make_bem_solution(model)
-    #trans = get_trans(filename)
     info = get_info(raw_filename, epochs_filename)
-
     fwd = mne.make_forward_solution(
         info,
         trans=trans_filename,
@@ -202,7 +213,8 @@ def make_trans(subject, raw_filename, epoch_filename, trans_name):
     import os
     import time
     import tempfile
-    trans, fiducials, info = get_head_correct_info(raw_filename, epoch_filename)
+    trans, fiducials, info = get_head_correct_info(
+        raw_filename, epoch_filename)
 
     with tempfile.NamedTemporaryFile(suffix='.fif') as hs_ref:
         # hs_ref = '/home/nwilming/conf_meg/trans/S%i-SESS%i.fif' % (
