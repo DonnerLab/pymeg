@@ -60,9 +60,9 @@ def annotate_jumps(raw, cutoff=25, allowed_before_bad=np.inf):
     logging.info('Annotating jump artifacts')
     arts, z, jumps_per_channel = detect_jumps(raw.copy(), cutoff=cutoff)
     # Need to check for jumps_per_channel
-    bads = [k for k, v in jumps_per_channel.iteritems() if v >
+    bads = [k for k, v in jumps_per_channel.items() if v >
             allowed_before_bad]
-    arts = [arts[k] for k, v in jumps_per_channel.iteritems() if v <=
+    arts = [arts[k] for k, v in jumps_per_channel.items() if v <=
             allowed_before_bad]
 
     if len(bads) > 0:
@@ -206,8 +206,8 @@ def detect_jumps(raw, cutoff=25):
     for i in range(filt.shape[0]):
         filt[i, :] = np.convolve(
             raw._data[i, :], jump_kernel, mode='same') - filt[i, :]
-        filt[i, :len(jump_kernel) / 2] = 0
-        filt[i, -len(jump_kernel) / 2:] = 0
+        filt[i, :int(len(jump_kernel) / 2)] = 0
+        filt[i, -int(len(jump_kernel) / 2):] = 0
 
     # Compute IGR and median
     Qs = np.percentile(filt, [10, 50, 90], axis=1)

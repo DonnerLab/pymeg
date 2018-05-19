@@ -3,7 +3,10 @@ import mne
 import locale
 import pandas as pd
 import numpy as np
-import cPickle
+try:
+    import cPickle
+except ModuleNotFoundError:
+    import _pickle as cPickle
 import json
 
 import h5py
@@ -45,8 +48,8 @@ def describe_taper(foi=None, cycles=None, time_bandwidth=None, **kwargs):
     '''
     from tabulate import tabulate
     data = taper_data(foi, cycles, time_bandwidth, **kwargs)
-    print tabulate(data,
-                   headers=['Freq', 'Cycles', 't. window', 'F. smooth', '#Tapers+1'])
+    print(tabulate(data,
+                   headers=['Freq', 'Cycles', 't. window', 'F. smooth', '#Tapers+1']))
 
 
 def get_smoothing(F, foi=None, cycles=None, time_bandwidth=None, **kwargs):
@@ -132,7 +135,7 @@ def save_tfr(tfr, fname, events):
         group = file.create_group('pymegtfr')
         group.attrs['freqs'] = tfr.freqs
         group.attrs['times'] = tfr.times
-        group.attrs['channels'] = np.array(tfr.ch_names).astype('str')
+        group.attrs['channels'] = np.string_(tfr.ch_names)
         for event, trial in zip(events[:, 2], tfr.data):
             shape = trial.shape
             chunk_size = (shape[0], 1, 1)
@@ -155,7 +158,7 @@ def get_tfrs(filenames, freq=(0, 100), channel=None, tmin=None, tmax=None,
     '''
     dfs = []
     for f in filenames:
-        print 'Reading ', f
+        print('Reading ', f)
         df = read_chunked_hdf(
             f, freq=freq, channel=channel, tmin=tmin, tmax=tmax)
         if baseline is not None:
@@ -184,7 +187,7 @@ def get_tfr_object(info, filenames, freq=(0, 100),
     '''
     dfs = []
     for f in filenames:
-        print 'Reading ', f
+        print('Reading ', f)
         df = read_chunked_hdf(
             f, freq=freq, channel=channel, tmin=tmin, tmax=tmax)
         dfs.append(df)

@@ -279,7 +279,7 @@ def head_movement(epochs):
                 'y': ['HLC0021', 'HLC0022', 'HLC0023'],
                 'z': ['HLC0031', 'HLC0032', 'HLC0033']}
     channel_ids = {}
-    for key, names in channels.iteritems():
+    for key, names in channels.items():
         ids = [np.where([n in ch for ch in ch_names])[0][0] for n in names]
         channel_ids[key] = ids
 
@@ -317,7 +317,7 @@ def head_loc(epochs):
                 'y': ['HLC0021', 'HLC0022', 'HLC0023'],
                 'z': ['HLC0031', 'HLC0032', 'HLC0033']}
     channel_ids = {}
-    for key, names in channels.iteritems():
+    for key, names in channels.items():
         ids = [np.where([n in ch for ch in ch_names])[0][0] for n in names]
         channel_ids[key] = ids
 

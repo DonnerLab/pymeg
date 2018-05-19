@@ -85,7 +85,7 @@ def get_meta(raw, mapping, trial_pins, trial_start, trial_end, other_pins=None):
         if trial_pins:
             # Find any pins that need special treatment, parse them and remove
             # triggers from trial_nums
-            for key, value in trial_pins.iteritems():
+            for key, value in trial_pins.items():
                 if key in trial_nums:
                     pstart = np.where(trial_nums == key)[0][0] + 1
                     pend = pstart + np.where(trial_nums[pstart:] > 8)[0][0] + 1
@@ -122,7 +122,7 @@ def get_meta(raw, mapping, trial_pins, trial_start, trial_end, other_pins=None):
     # Find other pins that are not trial related
     if other_pins:
         nums = events[:, 2]
-        for key, value in other_pins.iteritems():
+        for key, value in other_pins.items():
             pstarts = np.where(nums == key)[0] + 1
             for pstart in pstarts:
                 t = events[pstart, 0]
