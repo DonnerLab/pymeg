@@ -71,7 +71,7 @@ def params_from_json(filename):
 
 def tfr(filename, outstr='tfr.hdf', foi=None, cycles=None,
         time_bandwidth=None, decim=10, n_jobs=4, method='multitaper',
-        **kwargs):
+        save=True, **kwargs):
     '''
     Run TFR decomposition with multitapers.
     '''
@@ -90,7 +90,8 @@ def tfr(filename, outstr='tfr.hdf', foi=None, cycles=None,
                  n_cycles=cycles, output='power',
                  use_fft=False, decim=decim, n_jobs=n_jobs,
                  return_itc=False, **kwargs)
-    save_tfr(power, outname, epochs.events)
+    if save:
+        save_tfr(power, outname, epochs.events)
     return power
 
 

@@ -180,12 +180,12 @@ def add_volume_info(subject, surface, subjects_dir, volume='T1'):
     mri_dir = op.join(subject_dir, 'mri')
     T1_mgz = op.join(mri_dir, volume + '.mgz')
     new_info = _extract_volume_info(T1_mgz)
-    print new_info.keys()
+    print(new_info.keys())
     rr, tris, volume_info = read_surface(surface,
                                          read_metadata=True)
 
     # volume_info.update(new_info)  # replace volume info, 'head' stays
-    print volume_info.keys()
+    print(volume_info.keys())
     import numpy as np
     if 'head' not in volume_info.keys():
         volume_info['head'] = np.array([2,  0, 20], dtype=np.int32)
@@ -231,7 +231,7 @@ def make_trans(subject, raw_filename, epoch_filename, trans_name):
 
         cmd = 'mne coreg --high-res-head -d %s -s %s -f %s' % (
             subjects_dir, subject, hs_ref.name)
-        print cmd
+        print(cmd)
         os.system(cmd)
         mne.gui.coregistration(subject, inst=hs_ref.name,
                                subjects_dir=subjects_dir)
