@@ -10,11 +10,14 @@ from . import source_reconstruction as sr
 from joblib import Memory
 
 from mne import compute_covariance
-from mne.beamformer import lcmv_epochs
+from mne.beamformer import make_lcmv, apply_lcmv_epochs
 
 from . import tfr
 
-from itertools import izip
+try:
+    from itertools import izip as zip
+except ImportError: # will be 3.x series
+    pass
 
 
 memory = Memory(cachedir=os.environ['PYMEG_CACHE_DIR'], verbose=0)
@@ -120,14 +123,24 @@ def reconstruct(epochs, forward, source, noise_cov, data_cov, labels,
     if labels is None:
         labels = []
     index = epochs.events[:, 2]
-    if not (np.unique(index) == len(epochs.events.shape[0])):
+    if not (len(np.unique(index)) == epochs.events.shape[0]):
         index = np.arange(epochs._data.shape[0])
 
-    for trial, epoch in izip(index,
-                             lcmv_epochs(epochs, forward, noise_cov, data_cov,
-                                         reg=0.05,
-                                         pick_ori='max-power',
-                                         return_generator=True)):
+    # make filter:
+    filters = make_lcmv(
+            info=epochs.info,
+            forward=forward,
+            data_cov=data_cov,
+            noise_cov=noise_cov,
+            reg=0.05,
+            pick_ori='max-power',
+            )
+
+    for trial, epoch in zip(index,
+                             apply_lcmv_epochs(
+                                        epochs=epochs,
+                                        filters=filters,
+                                        return_generator=True)):
         if func is None:
             srcepoch = extract_labels_from_trial(
                 epoch, labels, int(trial), source)
