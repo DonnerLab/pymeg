@@ -89,7 +89,8 @@ def reconstruct_and_save(subject,
 
 
 def reconstruct(epochs, forward, source, noise_cov, data_cov, labels,
-                func=None, accumulator=None):
+                func=None, accumulator=None, 
+                first_all_vertices=True, debug=False):
     '''
     Perform SR for a set of epochs.
 
@@ -117,8 +118,17 @@ def reconstruct(epochs, forward, source, noise_cov, data_cov, labels,
             returns a 2D matrix, then identifier values needs to match the
             corresponding dimension (e.g. be the number of frequencies for
             TFR).
+        first_all_vertices : Bool
+            If True will first compute TFR for every vertex, and then mean 
+            across vertices for a given ROI (slower). If False will first mean 
+            broadband signal across vertices for a given ROI, and then compute 
+            TFR (faster). 
         accumulator : AccumSR object
     '''
+    
+    if debug: # Select only 2 trials to make debuggin easier
+        epochs = epochs[[str(l) for l in epochs.events[:2, 2]]]
+
     results = []
     if labels is None:
         labels = []
@@ -141,29 +151,21 @@ def reconstruct(epochs, forward, source, noise_cov, data_cov, labels,
                                         epochs=epochs,
                                         filters=filters,
                                         return_generator=True)):
-        if func is None:
-            srcepoch = extract_labels_from_trial(
-                epoch, labels, int(trial), source)
-            results.append(srcepoch)
-            if not accumulator is None:
-                accumulator.update(epoch)
-            del epoch
-        else:
-            for keyname, values, function in func:
-                print('Running', keyname, 'on trial', int(trial))
-                transformed = function(epoch.data)
+        
+        for keyname, values, function in func:
 
+            print('Running', keyname, 'on trial', int(trial))
+            
+            if first_all_vertices:
+                transformed = function(epoch.data)
                 tstep = epoch.tstep / \
                     (float(transformed.shape[2]) / len(epoch.times))
-
                 for value, row in zip(values, np.arange(transformed.shape[1])):
-
                     new_epoch = mne.SourceEstimate(transformed[:, row, :],
                                                    vertices=epoch.vertices,
                                                    tmin=epoch.tmin,
                                                    tstep=tstep,
                                                    subject=epoch.subject)
-
                     srcepoch = extract_labels_from_trial(
                         new_epoch, labels, int(trial), source)
                     srcepoch['est_val'] = value
@@ -172,8 +174,24 @@ def reconstruct(epochs, forward, source, noise_cov, data_cov, labels,
                     if not accumulator is None:
                         accumulator.update(keyname, value, new_epoch)
                     del new_epoch
-                del transformed
-            del epoch
+            else:
+                srcepoch = extract_labels_from_trial(
+                    epoch, labels, int(trial), source)
+                if not accumulator is None:
+                    accumulator.update(epoch)
+                rois = [r for r in srcepoch.keys() if not ((r=='trial') or (r=='time'))]
+                transformed = function(np.vstack([srcepoch[r] for r in rois]))
+                srcepoch['time'] = np.linspace(min(srcepoch['time']), 
+                                                max(srcepoch['time']), transformed.shape[2])
+                for value, row in zip(values, np.arange(transformed.shape[1])):
+                    new_epoch = srcepoch.copy()
+                    for i, r in enumerate(rois):
+                        new_epoch[r] = transformed[i,row]
+                    new_epoch['est_val'] = value
+                    new_epoch['est_key'] = keyname
+                    results.append(new_epoch)
+            del transformed
+        del epoch
 
     if len(labels) > 0:
         results = pd.concat([to_df(r) for r in results])

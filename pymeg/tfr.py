@@ -233,7 +233,7 @@ def read_chunked_hdf(fname, epochs=None, channel=None,
         if channel is None:
             ch_id = slice(None)
         else:
-            ch_id = [np.where(out['channels'] == c)[0][0] for c in channel]
+            ch_id = [np.where(out['channels'] == np.string_(c))[0][0] for c in channel]
         events, data = [], []
         if epochs is None:
             epochs = [int(i) for i in hdf.keys()]
