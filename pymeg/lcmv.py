@@ -16,7 +16,7 @@ from . import tfr
 
 try:
     from itertools import izip as zip
-except ImportError: # will be 3.x series
+except ImportError:  # will be 3.x series
     pass
 
 
@@ -89,7 +89,7 @@ def reconstruct_and_save(subject,
 
 
 def reconstruct(epochs, forward, source, noise_cov, data_cov, labels,
-                func=None, accumulator=None, 
+                func=None, accumulator=None,
                 first_all_vertices=True, debug=False):
     '''
     Perform SR for a set of epochs.
@@ -125,8 +125,8 @@ def reconstruct(epochs, forward, source, noise_cov, data_cov, labels,
             TFR (faster). 
         accumulator : AccumSR object
     '''
-    
-    if debug: # Select only 2 trials to make debuggin easier
+
+    if debug:  # Select only 2 trials to make debuggin easier
         epochs = epochs[[str(l) for l in epochs.events[:2, 2]]]
 
     results = []
@@ -138,24 +138,24 @@ def reconstruct(epochs, forward, source, noise_cov, data_cov, labels,
 
     # make filter:
     filters = make_lcmv(
-            info=epochs.info,
-            forward=forward,
-            data_cov=data_cov,
-            noise_cov=noise_cov,
-            reg=0.05,
-            pick_ori='max-power',
-            )
+        info=epochs.info,
+        forward=forward,
+        data_cov=data_cov,
+        noise_cov=noise_cov,
+        reg=0.05,
+        pick_ori='max-power',
+    )
 
     for trial, epoch in zip(index,
-                             apply_lcmv_epochs(
-                                        epochs=epochs,
-                                        filters=filters,
-                                        return_generator=True)):
-        
+                            apply_lcmv_epochs(
+                                epochs=epochs,
+                                filters=filters,
+                                return_generator=True)):
+
         for keyname, values, function in func:
 
             print('Running', keyname, 'on trial', int(trial))
-            
+
             if first_all_vertices:
                 transformed = function(epoch.data)
                 tstep = epoch.tstep / \
@@ -178,15 +178,16 @@ def reconstruct(epochs, forward, source, noise_cov, data_cov, labels,
                 srcepoch = extract_labels_from_trial(
                     epoch, labels, int(trial), source)
                 if not accumulator is None:
-                    accumulator.update(epoch)
-                rois = [r for r in srcepoch.keys() if not ((r=='trial') or (r=='time'))]
+                    accumulator.update(keyname, -1, srcepoch)
+                rois = [r for r in srcepoch.keys() if not (
+                    (r == 'trial') or (r == 'time'))]
                 transformed = function(np.vstack([srcepoch[r] for r in rois]))
-                srcepoch['time'] = np.linspace(min(srcepoch['time']), 
-                                                max(srcepoch['time']), transformed.shape[2])
+                srcepoch['time'] = np.linspace(min(srcepoch['time']),
+                                               max(srcepoch['time']), transformed.shape[2])
                 for value, row in zip(values, np.arange(transformed.shape[1])):
                     new_epoch = srcepoch.copy()
                     for i, r in enumerate(rois):
-                        new_epoch[r] = transformed[i,row]
+                        new_epoch[r] = transformed[i, row]
                     new_epoch['est_val'] = value
                     new_epoch['est_key'] = keyname
                     results.append(new_epoch)
@@ -234,13 +235,14 @@ class AccumSR(object):
             self.N += 1
 
     def save_averaged_sr(self):
-        stcs = self.stc.copy()
-        idbase = (-.5 < stcs.times) & (stcs.times < 0)
-        m = stcs.data[:, idbase].mean(1)[:, np.newaxis]
-        s = stcs.data[:, idbase].std(1)[:, np.newaxis]
-        stcs.data = (stcs.data - m) / s
-        stcs.save(self.filename)
-        return stcs
+        if not self.stc is None:
+            stcs = self.stc.copy()
+            idbase = (-.5 < stcs.times) & (stcs.times < 0)
+            m = stcs.data[:, idbase].mean(1)[:, np.newaxis]
+            s = stcs.data[:, idbase].std(1)[:, np.newaxis]
+            stcs.data = (stcs.data - m) / s
+            stcs.save(self.filename)
+            return stcs
 
 
 def get_highF_estimator(sf=600, decim=10):
