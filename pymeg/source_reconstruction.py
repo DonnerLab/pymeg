@@ -129,7 +129,7 @@ def get_leadfield(subject, raw_filename, epochs_filename, trans_filename,
 
 
 def make_bem_model(subject, ico=4, conductivity=(0.3, 0.006, 0.3),
-                   subjects_dir=None, verbose=None, bem_sub_path='bem_ft'):
+                   subjects_dir=None, verbose=None, bem_sub_path='bem'):
     """Create a BEM model for a subject.
 
     Copied from MNE python, adapted to read surface from fieldtrip / spm
