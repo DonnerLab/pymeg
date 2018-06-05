@@ -14,14 +14,14 @@ pyfftw.interfaces.cache.enable()
 
 # Load wisdom from previous plans if it exists
 
-hostname = socket.gethostname()
-cache = os.path.join('%s_fftw.wisdom.pickle' % hostname)
-try:
-    wisdom = pickle.load(open(cache))
-    pyfftw.import_wisdom(wisdom)
-except IOError:
-    print('Did not load wisdom cache')
-    pass
+#hostname = socket.gethostname()
+#cache = os.path.join('%s_fftw.wisdom.pickle' % hostname)
+#try:
+#    wisdom = pickle.load(open(cache))
+#    pyfftw.import_wisdom(wisdom)
+#except IOError:
+#    print('Did not load wisdom cache')
+#    pass
 
 
 def fft(X, shape=None):
