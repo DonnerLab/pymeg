@@ -150,7 +150,7 @@ def reduce(df, all_clusters=all_clusters):
     for hemi, hcolumns in zip(['-lh', '-rh'], [lh(columns), rh(columns)]):
         for name, cols in all_clusters.items():
             cols = filter_cols(hcolumns, cols)
-            if any([x in df.columns for x in ensure_iter(cols) ]):
+            if any([x in df.columns for x in ensure_iter(cols)]):
                 cluster = df.loc[:, cols].mean(1)
                 cluster.name = name + hemi
                 clusters.append(cluster)
@@ -177,6 +177,9 @@ def lateralize(data, ipsi, contra, suffix='_Lateralized'):
       ipsilateral. These columns will have _Lateralized appended,
       but still have 'lh' in them.
     '''
+    if not len(ipsi) == len(contra):
+        raise RuntimeError('Ipsi and Contra lists must have same length')
+    ipsi, contra = sorted(ipsi), sorted(contra)
     out = []
     for i, c in zip(ipsi, contra):
         out.append(data.loc[:, c] - data.loc[:, i])
@@ -214,6 +217,7 @@ def plot_roi(hemi, labels, colors, view='parietal',
         brain.add_label(label_file, color=color)
     brain.show_view(view)
     return brain.screenshot()
+
 
 def ensure_iter(input):
     if isinstance(input, str):
