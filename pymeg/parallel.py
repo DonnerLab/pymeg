@@ -70,36 +70,90 @@ def submit(walltime, memory, cwd, tmpdir,
     return output
 
 
+def slurm_submit(walltime, memory, tmpdir, logdir, script, name,
+                 nodes=1, tasks=16, email=None, env=None,
+                 shellfname=None):
+    '''
+    Submit a script to torque
+    '''
+    print('script in submit {}'.format(script))
+    sbatch_directives = '''#!/bin/bash
+#SBATCH --job-name={name}
+#SBATCH --nodes={nodes}
+#SBATCH --tasks-per-node={tasks}
+#SBATCH --time={walltime}
+#SBATCH --export=NONE
+#SBATCH --mem={memory}GB
+#SBATCH --partition=std
+    '''.format(walltime=walltime,
+               nodes=nodes,
+               memory=memory,
+               tasks=tasks,
+               name=name)
+    if email is not None:
+        sbatch_directives += '''
+#SBATCH --mail-user={email}
+#SBATCH --mail-type=ALL
+        '''.format(email=email)
+    sbatch_directives += '''
+#SBATCH --error={logdir}/slurm_%j.out
+#SBATCH --output={logdir}/slurm_%j.err
+source /sw/modules/rrz-modules.sh
+    '''.format(logdir=logdir)
+
+    environment_variables = '''
+module purge
+module load env
+module load site/hummel
+source ~/.bashrc
+
+{script}
+    '''.format(script=script)
+    command = sbatch_directives + environment_variables
+    with tempfile.NamedTemporaryFile(mode='w', delete=False, dir=tmpdir,
+                                     prefix='sbatch_script') as shellfname:
+        shellfname.write(command)
+        shellfname = shellfname.name
+    command = "sbatch %s" % (shellfname)
+    output = subprocess.check_output(
+        command,
+        stderr=subprocess.STDOUT,
+        shell=True)
+    return output
+
+
 def to_script(func, tmpdir, *args):
     '''
     Write a simple stub python function that calls this function.
     '''
 
-    with tempfile.NamedTemporaryFile(delete=False, dir=tmpdir,
-                                     prefix='delete_me_tmp') as script:
+    with tempfile.NamedTemporaryFile(mode='w', delete=False, dir=tmpdir,
+                                     prefix='py_submit_script') as script:
         code = """
-print('Parameters:', '%s', '%s')
-from %s import %s
-%s(*%s)
-        """ % (str(args).replace("'", ''), func.__name__,
-               func.__module__, func.__name__,
-               func.__name__, str(args))
+print('Parameters:', '{function}', {qargs})
+from {module} import {function}
+{function}{args}
+        """.format(module=func.__module__,
+                   function=func.__name__,
+                   args=args, qargs=str(args))
         script.write(code.encode('utf-8'))
-        return script.name
+        return str(script.name)
 
 
-def pmap(func, args, walltime=12, memory=10, logdir=None, tmpdir=None,
-         name=None, nodes='1:ppn=1', verbose=True, env=None, ssh_to=None):
+def pmap(func, args, cluster='PBS', walltime=12, memory=10, logdir=None, tmpdir=None,
+         name=None, nodes=1, tasks=1, verbose=True, env=None, email=None,
+         ssh_to='node028', home=None):
+    from os.path import expanduser, join
     if name is None:
         name = func.__name__
     if logdir is None:
-        from os.path import expanduser, join
-        home = expanduser("~")
+        if home is None:
+            home = expanduser("~")
         logdir = join(home, 'cluster_logs', func.__name__)
         mkdir_p(logdir)
     if tmpdir is None:
-        from os.path import expanduser, join
-        home = expanduser("~")
+        if home is None:
+            home = expanduser("~")
         tmpdir = join(home, 'cluster_logs', 'tmp')
         mkdir_p(tmpdir)
     out = []
@@ -107,7 +161,13 @@ def pmap(func, args, walltime=12, memory=10, logdir=None, tmpdir=None,
         script = 'ipython ' + to_script(func, tmpdir, *arg)
         if verbose:
             print(arg, '->', script)
-        pid = submit(walltime, memory, logdir, tmpdir, script, name, env=env, nodes=nodes)
+        if cluster.upper() == 'PBS':
+            nodes = '%i:ppn=%i' % (nodes, tasks)
+            pid = submit(walltime, memory, logdir, tmpdir,
+                         script, name, env=env, nodes=nodes)
+        elif cluster.upper() == 'SLURM':
+            pid = slurm_submit(walltime, memory, logdir, tmpdir, script, name, env=env,
+                               email=email, nodes=nodes, tasks=tasks)
         out.append(pid)
     return out
 
