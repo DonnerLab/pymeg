@@ -154,7 +154,7 @@ def reconstruct(epochs, forward, source, noise_cov, data_cov, labels,
 
         for keyname, values, function in func:
 
-            print('Running', keyname, 'on trial', int(trial))
+            #print('Running', keyname, 'on trial', int(trial))
 
             if first_all_vertices:
                 transformed = function(epoch.data)
@@ -207,10 +207,9 @@ def extract_labels_from_trial(epoch, labels, trial, source):
         try:
             pca = epoch.extract_label_time_course(
                 label, source, mode='mean')
-        except ValueError:
-            pass
-            # print('Source space contains no vertices for', label)
-        srcepoch[label.name] = pca
+            srcepoch[label.name] = pca
+        except ValueError:            
+            print('Source space contains no vertices for', label)
     return srcepoch
 
 
