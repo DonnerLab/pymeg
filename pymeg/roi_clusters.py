@@ -157,7 +157,7 @@ def reduce(df, all_clusters=all_clusters):
     return clusters
 
 
-def lateralize(data, ipsi, contra):
+def lateralize(data, ipsi, contra, suffix='_Lateralized'):
     '''
     Lateralize set of rois.
 
@@ -180,7 +180,7 @@ def lateralize(data, ipsi, contra):
     for i, c in zip(ipsi, contra):
         out.append(data.loc[:, c] - data.loc[:, i])
         out[-1].name = i.replace('rh', 'lh').replace('PCeS',
-                                                     'PCes') + '_Lateralized'
+                                                     'PCes') + suffix
     return pd.concat(out, 1)
 
 
