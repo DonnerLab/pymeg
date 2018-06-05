@@ -136,7 +136,7 @@ from {module} import {function}
         """.format(module=func.__module__,
                    function=func.__name__,
                    args=args, qargs=str(args))
-        script.write(code.encode('utf-8'))
+        script.write(code)
         return str(script.name)
 
 
