@@ -122,7 +122,7 @@ def filter_cols(columns, select):
       strings in select
 
     '''
-    return [x for x in columns if any([y.lower() in x.lower() for y in select])]
+    return [x for x in columns if any([y.lower() in x.lower() for y in ensure_iter(select)])]
 
 
 def reduce(df, all_clusters=all_clusters):
@@ -150,14 +150,15 @@ def reduce(df, all_clusters=all_clusters):
     for hemi, hcolumns in zip(['-lh', '-rh'], [lh(columns), rh(columns)]):
         for name, cols in all_clusters.items():
             cols = filter_cols(hcolumns, cols)
-            cluster = df.loc[:, cols].mean(1)
-            cluster.name = name + hemi
-            clusters.append(cluster)
+            if any([x in df.columns for x in ensure_iter(cols) ]):
+                cluster = df.loc[:, cols].mean(1)
+                cluster.name = name + hemi
+                clusters.append(cluster)
     clusters = pd.concat(clusters, 1)
     return clusters
 
 
-def lateralize(data, ipsi, contra):
+def lateralize(data, ipsi, contra, suffix='_Lateralized'):
     '''
     Lateralize set of rois.
 
@@ -180,7 +181,7 @@ def lateralize(data, ipsi, contra):
     for i, c in zip(ipsi, contra):
         out.append(data.loc[:, c] - data.loc[:, i])
         out[-1].name = i.replace('rh', 'lh').replace('PCeS',
-                                                     'PCes') + '_Lateralized'
+                                                     'PCes') + suffix
     return pd.concat(out, 1)
 
 
@@ -213,3 +214,13 @@ def plot_roi(hemi, labels, colors, view='parietal',
         brain.add_label(label_file, color=color)
     brain.show_view(view)
     return brain.screenshot()
+
+def ensure_iter(input):
+    if isinstance(input, str):
+        yield input
+    else:
+        try:
+            for item in input:
+                yield item
+        except TypeError:
+            yield input
