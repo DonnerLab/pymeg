@@ -11,7 +11,7 @@ import tempfile
 
 def submit(walltime, memory, cwd, tmpdir,
            script, name, nodes='1:ppn=1',
-           shellfname=None, env=None, ssh_to='node028'):
+           shellfname=None, env=None, ssh_to=None):
     '''
     Submit a script to torque
     '''
@@ -57,7 +57,7 @@ def submit(walltime, memory, cwd, tmpdir,
     command = cmd_top + cmd_bottom
     with tempfile.NamedTemporaryFile(delete=False, dir=tmpdir,
                                      prefix='delete_me_tmp') as shellfname:
-        shellfname.write(command)
+        shellfname.write(command.encode('utf-8'))
         shellfname = shellfname.name
     if ssh_to is None:
         command = "qsub %s" % (shellfname)
@@ -84,12 +84,12 @@ from %s import %s
         """ % (str(args).replace("'", ''), func.__name__,
                func.__module__, func.__name__,
                func.__name__, str(args))
-        script.write(code)
+        script.write(code.encode('utf-8'))
         return script.name
 
 
 def pmap(func, args, walltime=12, memory=10, logdir=None, tmpdir=None,
-         name=None, nodes='1:ppn=1', verbose=True, env=None, ssh_to='node028'):
+         name=None, nodes='1:ppn=1', verbose=True, env=None, ssh_to=None):
     if name is None:
         name = func.__name__
     if logdir is None:
