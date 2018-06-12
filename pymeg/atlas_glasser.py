@@ -7,6 +7,27 @@ Get HCP MMP Parcellation for a set of subjects
 '''
 
 
+def get_hcp(subjects_dir):
+    mne.datasets.fetch_hcp_mmp_parcellation(
+        subjects_dir=subjects_dir, verbose=True)
+
+
+def get_hcp_annotation(subjects_dir, subject):
+    for hemi in ['lh', 'rh']:
+        # transform atlas to individual space:
+        cmd = 'mris_apply_reg --src-annot {} --trg {} --streg {} {}'.format(
+            os.path.join(subjects_dir, 'fsaverage', 'label',
+                         '{}.HCPMMP1.annot'.format(hemi)),
+            os.path.join(subjects_dir, subject, 'label',
+                         '{}.HCPMMP1.annot'.format(hemi)),
+            os.path.join(subjects_dir, 'fsaverage', 'surf',
+                         '{}.sphere.reg'.format(hemi)),
+            os.path.join(subjects_dir, subject, 'surf', '{}.sphere.reg'.format(hemi)),)
+        os.system(cmd)
+
+        
+
+
 def get_hcp_labels(subjects_dir, subjects):
     '''
     Downloads HCP MMP Parcellation and applies it to a set of subjects
