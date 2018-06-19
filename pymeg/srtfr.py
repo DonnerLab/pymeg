@@ -70,6 +70,7 @@ def contrast_controlled_response_contrast(sub, epoch='stimulus'):
     return contrast(sub, filter_dict, hand_mapping, ['P1', 'M1'],
                     epoch=epoch, baseline_time=baseline_time)
 
+
 def response_contrast(subs=range(1, 16), epoch='stimulus'):
     return pd.concat(
         [_prewarm_response_contrast(sub, epoch=epoch) for sub in subs])
@@ -85,7 +86,6 @@ def _prewarm_response_contrast(sub, epoch='stimulus', baseline_time=(-0.25, 0)):
         hand_mapping = {'M1': 'rh_is_ipsi', 'P1': 'lh_is_ipsi'}
     return contrast(sub, filter_dict, hand_mapping, ['P1', 'M1'],
                     epoch=epoch, baseline_time=baseline_time)
-
 
 #@memory.cache
 def contrast(sub, filter_dict, hand_mapping, contrast,
@@ -279,7 +279,7 @@ def plot_set(response, stimulus, setname, setareas, minmax=(10, 20),
     # Setup gridspec to compare stimulus and response next to each other.
     rows, cols = rois.layouts[setname]
     if new_figure:
-        plt.figure(figsize=(cols*3.5, rows*3.5))
+        plt.figure(figsize=(cols * 3.5, rows * 3.5))
 
     gs = GridSpec(2 * rows, 2 * cols, height_ratios=[140, 16] * rows,
                   width_ratios=[1.55, 1] * cols)
@@ -323,7 +323,7 @@ def plot_labels(data, areas, locations, gs, stats=True, minmax=(10, 20),
             p = p.reshape(t.shape)
         cbar = _plot_tfr(area, ex_tfr.columns.values, ex_tfr.index.values,
                          s.mean(0), p, title_color='k', minmax=minmax[0])
-        if ((row+2, col+1) == gs.get_geometry()):
+        if ((row + 2, col + 1) == gs.get_geometry()):
             pass
         else:
             cbar.remove()
@@ -443,3 +443,5 @@ def load_sub_grouped(sub, trials=None, epoch='stimulus'):
     cond = sacc.loc[trials, :].groupby(
         ['sub', 'time', 'est_key', 'est_val']).mean()
     return cond
+
+

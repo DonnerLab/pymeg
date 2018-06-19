@@ -359,7 +359,7 @@ def combine_annotations(annotations, first_samples, last_samples, sfreq):
 
 
 def ensure_iter(input):
-    if isinstance(input, basestring):
+    if isinstance(input, str):
         yield input
     else:
         try:
