@@ -8,10 +8,11 @@ import logging
 
 nthread = multiprocessing.cpu_count()
 
-
-import pyfftw
-pyfftw.interfaces.cache.enable()
-
+try:
+    import pyfftw
+    pyfftw.interfaces.cache.enable()
+except:
+    pyfftw = None
 # Load wisdom from previous plans if it exists
 
 #hostname = socket.gethostname()

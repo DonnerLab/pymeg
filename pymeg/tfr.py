@@ -104,7 +104,7 @@ def array_tfr(epochs, sf=600, foi=None, cycles=None, time_bandwidth=None,
                          n_cycles=cycles,
                          zero_mean=True,
                          time_bandwidth=time_bandwidth,
-                         n_jobs=4,
+                         n_jobs=n_jobs,
                          use_fft=True,
                          output=output)
     return power
