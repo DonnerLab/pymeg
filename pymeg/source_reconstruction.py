@@ -161,13 +161,20 @@ def make_bem_model(subject, ico=4, conductivity=(0.3, 0.006, 0.3),
 
 
 @memory.cache
-def get_labels(subject, filters=['*wang2015atlas*', '*a2009s*.label']):
+def get_labels(subject, filters=['*wang2015atlas*'],
+               annotations=['HCPMMP1']):
     import glob
     subject_dir = join(subjects_dir, subject)
     labels = []
     for filter in filters:
         labels += glob.glob(join(subject_dir, 'label', filter))
-    return [mne.read_label(label, subject) for label in labels]
+    labels = [mne.read_label(label, subject) for label in labels]
+    for annotation in annotations:
+        annot = mne.read_labels_from_annot(
+            subject, parc=annotation, subjects_dir=subjects_dir)
+        annot = [a for a in annot if not '???' in a.name]
+        labels.extend(annot)
+    return labels
 
 
 def add_volume_info(subject, surface, subjects_dir, volume='T1'):
