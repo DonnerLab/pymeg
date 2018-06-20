@@ -65,6 +65,16 @@ frontal = {'ACC': ('G&S_cingul-Ant-lh', 'G&S_cingul-Mid-Ant'),
            'Sf_middle': ('S_front_middle',),
            'Sf_sup': ('S_front_sup',)}
 
+glasser = {'LIP': ('LIPd', 'LIPv'),
+           'Area6_dorsal_medial': ('6mp', '6d'),
+           'Area6_anterior': ('6ma', '6a'),
+           'A10': ('10pp', '10r', '10v'),
+           'A6si': ('s6-8', 'i6-8',)}
+for A in ['PEF', '55b', '8Av', '8Ad', '9p', '8Bl', '8C', 'p9-46v', '46', '9-46d', '9a'
+          'p10p', 'a10p', 'a47r', 'p32', 's32', 'a24', '9m', 'd32', 'a32pr', '8BM'
+          'p24', 'a24', 'p32pr', '24dv', 'p24pr']:
+    glasser[A] = A
+
 
 rows = {'visual': visual_field_clusters,
         'choice': jwrois,
@@ -73,7 +83,7 @@ rows = {'visual': visual_field_clusters,
 all_clusters = {}
 all_clusters.update(visual_field_clusters)
 all_clusters.update(jwrois)
-all_clusters.update(frontal)
+all_clusters.update(glasser)
 
 
 def rh(columns):

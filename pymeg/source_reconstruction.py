@@ -87,7 +87,7 @@ def get_info(raw_filename, epochs_filename):
 
 @memory.cache
 def get_leadfield(subject, raw_filename, epochs_filename, trans_filename,
-                  conductivity=(0.3, 0.006, 0.3)):
+                  conductivity=(0.3, 0.006, 0.3), njobs=4, bem_sub_path='bem'):
     '''
     Compute leadfield with presets for this subject
 
@@ -113,7 +113,8 @@ def get_leadfield(subject, raw_filename, epochs_filename, trans_filename,
         subject=subject,
         ico=None,
         conductivity=conductivity,
-        subjects_dir=subjects_dir)
+        subjects_dir=subjects_dir,
+        bem_sub_path=bem_sub_path)
     bem = mne.make_bem_solution(model)
     info = get_info(raw_filename, epochs_filename)
     fwd = mne.make_forward_solution(
@@ -123,8 +124,8 @@ def get_leadfield(subject, raw_filename, epochs_filename, trans_filename,
         bem=bem,
         meg=True,
         eeg=False,
-        mindist=5.0,
-        n_jobs=2)
+        mindist=2.5,
+        n_jobs=njobs)
     return fwd, bem, fwd['src']
 
 
