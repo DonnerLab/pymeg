@@ -10,10 +10,11 @@ import numpy as np
 import pandas as pd
 
 from joblib import Memory
+from joblib import Parallel, delayed
 
 from mne import compute_covariance
 from mne.beamformer import make_lcmv
-from mne.beamformer._lcmv import _apply_lcmv
+#from mne.beamformer._lcmv import _apply_lcmv
 from mne.time_frequency.tfr import _compute_tfr
 
 memory = Memory(cachedir=os.environ['PYMEG_CACHE_DIR'], verbose=0)
@@ -97,13 +98,19 @@ def flip_vertices(data):
     return data
 
 
+@memory.cache
 def setup_filters(info, forward, data_cov, noise_cov, labels,
-                  reg=0.05, pick_ori='max-power'):
+                  reg=0.05, pick_ori='max-power', njobs=4):
     logging.info('Getting filter')
-    return {l.name: get_filter(info, forward, data_cov,
-                               noise_cov, label=l, reg=reg,
-                               pick_ori='max-power')
-            for l in labels}
+    tasks = []
+    for l in labels:
+        tasks.append(delayed(get_filter)(
+            info, forward, data_cov,
+            noise_cov, label=l, reg=reg,
+            pick_ori='max-power'))
+
+    filters = Parallel(n_jobs=njobs, verbose=1)(tasks)
+    return {name: f for name, f in filters}
 
 
 def reconstruct_tfr(
@@ -119,7 +126,8 @@ def reconstruct_tfr(
         pre_estimator=estimator, pre_est_args=est_args, epochs=epochs,
         events=events, times=times, info=info, filters=filters,
         post_func=post_func, accumulate_func=accumulate_func, njobs=njobs)
-    return pd.concat(M, axis=1)
+    return pd.concat([pd.concat(m, axis=0) for m in M], axis=1)
+    # return pd.concat(M, axis=1)
 
 
 def reconstruct_broadband(
@@ -134,7 +142,8 @@ def reconstruct_broadband(
         pre_estimator=estimator, pre_est_args=est_args, epochs=epochs,
         events=events, times=times, info=info, filters=filters,
         post_func=None, accumulate_func=accumulate_func, njobs=njobs)
-    return pd.concat(M, axis=1)
+
+    return pd.concat([pd.concat(m, axis=0) for m in M], axis=1)
 
 
 def par_reconstruct(pre_estimator, pre_est_args, epochs, events, times,
@@ -144,7 +153,6 @@ def par_reconstruct(pre_estimator, pre_est_args, epochs, events, times,
     Apply LCMV source reconstruction to epochs and apply a filter before and
     after.
     '''
-    from joblib import Parallel, delayed
     pre_est_args['n_jobs'] = njobs
     logging.info('Applying pre-estimator function, params: ' +
                  str(pre_est_args))
@@ -164,8 +172,7 @@ def par_reconstruct(pre_estimator, pre_est_args, epochs, events, times,
         'Prepared %i tasks for parallel execution with %i jobs' %
         (len(tasks), njobs)
     )
-    return [x[0] for x in Parallel(n_jobs=njobs, verbose=1)(tasks)
-            if len(x) > 0]
+    return Parallel(n_jobs=njobs, verbose=1)(tasks)
 
 
 def apply_lcmv(tfrdata, est_key, est_vals, events, times, info,
@@ -217,7 +224,8 @@ def apply_lcmv(tfrdata, est_key, est_vals, events, times, info,
         # Must be trials x n_sensors x t_time
         tfrdata = tfrdata[:, :, np.newaxis, :]
     nfreqs = tfrdata.shape[2]
-    #ntrials = tfrdata.shape[0]
+    assert(len(est_vals) == nfreqs)
+    # ntrials = tfrdata.shape[0]
     info['sfreq'] = 1. / np.diff(times)[0]
     results = []
     for freq, (roi, filter) in product(range(nfreqs), filters.items()):
@@ -229,13 +237,13 @@ def apply_lcmv(tfrdata, est_key, est_vals, events, times, info,
                                          max_ori_out=max_ori_out)])
             if post_func is None:
                 results.append(accumulate_func(
-                    data, est_key=est_key, time=times, est_val=freq,
+                    data, est_key=est_key, time=times, est_val=est_vals[freq],
                     roi=roi, trial=events))
             else:
                 data = post_func(data)
                 results.append(accumulate_func(
                     data, est_key=est_key, time=times,
-                    est_val=freq, roi=roi, trial=events))
+                    est_val=est_vals[freq], roi=roi, trial=events))
     return results
 
 
@@ -249,7 +257,6 @@ def get_noise_cov(epochs, tmin=-0.5, tmax=0):
     return compute_covariance(epochs, tmin=tmin, tmax=tmax, method='shrunk')
 
 
-@memory.cache
 def get_filter(info, forward, data_cov, noise_cov, label=None, reg=0.05,
                pick_ori='max-power'):
     filter = make_lcmv(info=info,
@@ -261,7 +268,8 @@ def get_filter(info, forward, data_cov, noise_cov, label=None, reg=0.05,
                        label=label)
     del filter['data_cov']
     del filter['noise_cov']
-    return filter
+    del filter['src']
+    return label.name, filter
 
 
 def get_filters(estimator, epochs, forward, source, noise_cov, data_cov,
@@ -269,3 +277,65 @@ def get_filters(estimator, epochs, forward, source, noise_cov, data_cov,
     return {l.name: get_filter(epochs.info, forward, data_cov, noise_cov,
                                label=l, reg=0.05, pick_ori='max-power')
             for l in labels}
+
+
+def _apply_lcmv(data, filters, info, tmin, max_ori_out):
+    """Apply LCMV spatial filter to data for source reconstruction.
+    Copied directly from MNE to remove dependence on source space in
+    filter. This makes the filter much smaller and easier to use 
+    multiprocessing here.
+
+    Original authors: 
+    Authors: Alexandre Gramfort <alexandre.gramfort@telecom-paristech.fr>
+              Roman Goj <roman.goj@gmail.com>
+              Britta Westner <britta.wstnr@gmail.com>
+
+    Original License: BSD (3-clause)
+    """
+    from mne.source_estimate import _make_stc
+    from mne.minimum_norm.inverse import combine_xyz
+    if max_ori_out != 'signed':
+        raise ValueError('max_ori_out must be "signed", got %s'
+                         % (max_ori_out,))
+
+    if isinstance(data, np.ndarray) and data.ndim == 2:
+        data = [data]
+        return_single = True
+    else:
+        return_single = False
+
+    W = filters['weights']
+
+    #subject = _subject_from_forward(filters)
+    for i, M in enumerate(data):
+        if len(M) != len(filters['ch_names']):
+            raise ValueError('data and picks must have the same length')
+
+        if filters['is_ssp']:
+            raise RuntimeError('SSP not supported here')
+
+        if filters['whitener'] is not None:
+            M = np.dot(filters['whitener'], M)
+
+        # project to source space using beamformer weights
+        vector = False
+        if filters['is_free_ori']:
+            sol = np.dot(W, M)
+            if filters['pick_ori'] == 'vector':
+                vector = True
+            else:
+                sol = combine_xyz(sol)
+        else:
+            # Linear inverse: do computation here or delayed
+            if (M.shape[0] < W.shape[0] and
+                    filters['pick_ori'] != 'max-power'):
+                sol = (W, M)
+            else:
+                sol = np.dot(W, M)
+            if filters['pick_ori'] == 'max-power' and max_ori_out == 'abs':
+                sol = np.abs(sol)
+
+        tstep = 1.0 / info['sfreq']
+        yield _make_stc(sol, vertices=filters['vertices'], tmin=tmin,
+                        tstep=tstep, subject='NN', vector=vector,
+                        source_nn=filters['source_nn'])
