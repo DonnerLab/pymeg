@@ -1,26 +1,250 @@
 from __future__ import division
 from __future__ import print_function
 
-import mne
-import numpy as np
-import pandas as pd
+import logging
 import os
 
-from . import source_reconstruction as sr
+from itertools import product
+
+import numpy as np
+import pandas as pd
+
 from joblib import Memory
+from joblib import Parallel, delayed
 
 from mne import compute_covariance
-from mne.beamformer import make_lcmv, apply_lcmv_epochs
-
-from . import tfr
-
-try:
-    from itertools import izip as zip
-except ImportError:  # will be 3.x series
-    pass
-
+from mne.beamformer import make_lcmv
+#from mne.beamformer._lcmv import _apply_lcmv
+from mne.time_frequency.tfr import _compute_tfr
 
 memory = Memory(cachedir=os.environ['PYMEG_CACHE_DIR'], verbose=0)
+
+fois = np.arange(10, 150, 5)
+default_tfr = {'foi': fois, 'cycles': fois * 0.1, 'time_bandwidth': 2,
+               'n_jobs': 1, 'est_val': fois, 'est_key': 'F'}
+
+
+def power_est(x, time, est_val=None, est_key=None, sf=600., foi=None,
+              cycles=None, time_bandwidth=None, n_jobs=1, decim=10):
+    '''
+    Estimate power of epochs in array x.
+    '''
+    if len(x.shape) == 2:
+        x = x[np.newaxis, :, :]
+    y = _compute_tfr(
+        x, foi, sfreq=sf, method='multitaper', decim=decim, n_cycles=cycles,
+        zero_mean=True, time_bandwidth=time_bandwidth, n_jobs=n_jobs,
+        use_fft=True, output='complex')
+    return y, time[::decim], est_val, est_key
+
+
+def broadband_est(x, time, est_val=[-1], est_key='BB', **kwargs):
+    return x, time, est_val, est_key
+
+
+def tfr2power_estimator(x):
+    return ((x * x.conj()).real).mean(1)
+
+
+def accumulate(data, time, est_key, est_val, roi, trial):
+    '''
+    Transform SR results to data frame.
+
+    Arguments
+    ---------
+
+    data: ndarray
+        If ntrials x vertices x time in which case the
+        function will average across vertices.
+        If ntrials x time will be directly converted to df.
+    time: ndarray
+        time points that match last dimension of data
+    est_key: value
+        estimation key for this value
+    est_val: value
+        estimation value for this set of data
+    roi: str
+        Name of the roi that this comes from
+    trial: ndarray
+        Needs to match first dim of data
+    '''
+    if data.ndim == 3:
+        data = flip_vertices(data).mean(1)
+
+    # Now ntrials x time
+    df = pd.DataFrame(data, index=trial, columns=time)
+    df.columns.name = 'time'
+    df.index.name = 'trial'
+    df = df.stack().reset_index()
+    df.loc[:, 'est_key'] = est_key
+    df.loc[:, 'est_val'] = est_val
+    df.set_index(['trial', 'time', 'est_key', 'est_val'], inplace=True)
+    df.columns = [roi]
+    return df
+
+
+def flip_vertices(data):
+    '''
+    Average over vertices but correct for random flips first
+    Correction is done by ensuring positive correlations
+    between vertices
+    '''
+    for i in range(data.shape[1]):
+        if np.corrcoef(data[:, i, :].ravel(),
+                       data[:, 0, :].ravel())[0, 1] < 0:
+            data[:, i, :] = -data[:, i, :]
+    if all(data.mean((0, 2)) < 0):
+        data = -data
+    return data
+
+
+@memory.cache
+def setup_filters(info, forward, data_cov, noise_cov, labels,
+                  reg=0.05, pick_ori='max-power', njobs=4):
+    logging.info('Getting filter')
+    tasks = []
+    for l in labels:
+        tasks.append(delayed(get_filter)(
+            info, forward, data_cov,
+            noise_cov, label=l, reg=reg,
+            pick_ori='max-power'))
+
+    filters = Parallel(n_jobs=njobs, verbose=1)(tasks)
+    return {name: f for name, f in filters}
+
+
+def reconstruct_tfr(
+        filters, info, epochs,  events, times,
+        estimator=power_est, est_args=default_tfr,
+        post_func=tfr2power_estimator, accumulate_func=accumulate,
+        njobs=4):
+    '''
+    Reconstruct a set of epochs with filters based on data_cov and forward
+    model.
+    '''
+    M = par_reconstruct(
+        pre_estimator=estimator, pre_est_args=est_args, epochs=epochs,
+        events=events, times=times, info=info, filters=filters,
+        post_func=post_func, accumulate_func=accumulate_func, njobs=njobs)
+    return pd.concat([pd.concat(m, axis=0) for m in M], axis=1)
+    # return pd.concat(M, axis=1)
+
+
+def reconstruct_broadband(
+        filters, info, epochs,  events, times,
+        estimator=broadband_est, est_args={}, post_func=None,
+        accumulate_func=accumulate, njobs=4):
+    '''
+    Reconstruct a set of epochs with filters based on data_cov and forward
+    model.
+    '''
+    M = par_reconstruct(
+        pre_estimator=estimator, pre_est_args=est_args, epochs=epochs,
+        events=events, times=times, info=info, filters=filters,
+        post_func=None, accumulate_func=accumulate_func, njobs=njobs)
+
+    return pd.concat([pd.concat(m, axis=0) for m in M], axis=1)
+
+
+def par_reconstruct(pre_estimator, pre_est_args, epochs, events, times,
+                    info, filters, post_func=tfr2power_estimator,
+                    accumulate_func=accumulate, njobs=4):
+    '''
+    Apply LCMV source reconstruction to epochs and apply a filter before and
+    after.
+    '''
+    pre_est_args['n_jobs'] = njobs
+    logging.info('Applying pre-estimator function, params: ' +
+                 str(pre_est_args))
+    tfrdata, times, est_val, est_key = pre_estimator(
+        epochs, times, **pre_est_args)
+    logging.info('Done with pre-estimator. Data has shape ' +
+                 str(tfrdata.shape) + ' now')
+    tasks = []
+
+    for filter in filters.keys():
+        tasks.append(delayed(apply_lcmv)(
+            tfrdata, est_key, est_val, events,
+            times, info,
+            {filter: filters[filter]}, post_func=post_func,
+            accumulate_func=accumulate_func))
+    logging.info(
+        'Prepared %i tasks for parallel execution with %i jobs' %
+        (len(tasks), njobs)
+    )
+    return Parallel(n_jobs=njobs, verbose=1)(tasks)
+
+
+def apply_lcmv(tfrdata, est_key, est_vals, events, times, info,
+               filters, post_func=None, accumulate_func=None,
+               max_ori_out='signed'):
+    '''
+    Apply Linearly Constrained Minimum Variance (LCMV) beamformer weights.
+
+
+    Arguments
+    ---------
+    tfrdata: ndarray
+        Data to be reconstructed.
+        Should be either n_trials x n_sensors x Y x n_time
+        or trials x sensors x time. Reconstruction treats epochs and
+        dim Y as independent dimensions.
+    est_key: value
+        A key to identify this reconstruction (e.g. F for power)
+    est_vals: sequence
+        Values that identify different reconstructions along dimension Y
+        for a single epoch, e.g. the frequency for power reconstructions.
+        Needs to be length Y.
+    events: array
+        Identifiers for different epochs. Needs to be of length n_trials.
+    times: array
+        Time of entries in last dimension of input data.
+    info: mne info structure
+        Info structure of the epochs which are to be reconstructed
+    filters: dict
+        Contains ROI names as keys and MNE filter dicts as values.
+    post_func: function
+        This function is applied to the reconstructed epochs, useful
+        to convert complex TFR estimates into power values.
+    accumulate_func: function
+        Function that is applied after post_func has been applied.
+        Can for example be used to transform the output into a dataframe.
+    max_ori_out: str, default 'signed'
+        This is passed to the MNE LCMV function which at the moment requires
+        this to be 'signed'
+
+    Output
+    ------
+        List of source reconstructed epochs transformed by post_func.
+    '''
+
+    if accumulate_func is None:
+        accumulate_func = lambda x: x
+    if tfrdata.ndim == 3:
+        # Must be trials x n_sensors x t_time
+        tfrdata = tfrdata[:, :, np.newaxis, :]
+    nfreqs = tfrdata.shape[2]
+    assert(len(est_vals) == nfreqs)
+    # ntrials = tfrdata.shape[0]
+    info['sfreq'] = 1. / np.diff(times)[0]
+    results = []
+    for freq, (roi, filter) in product(range(nfreqs), filters.items()):
+        if filter['weights'].size > 0:
+            data = np.stack([x._data for x in
+                             _apply_lcmv(data=tfrdata[:, :, freq, :],
+                                         filters=filter,
+                                         info=info, tmin=times.min(),
+                                         max_ori_out=max_ori_out)])
+            if post_func is None:
+                results.append(accumulate_func(
+                    data, est_key=est_key, time=times, est_val=est_vals[freq],
+                    roi=roi, trial=events))
+            else:
+                data = post_func(data)
+                results.append(accumulate_func(
+                    data, est_key=est_key, time=times,
+                    est_val=est_vals[freq], roi=roi, trial=events))
+    return results
 
 
 @memory.cache
@@ -33,275 +257,85 @@ def get_noise_cov(epochs, tmin=-0.5, tmax=0):
     return compute_covariance(epochs, tmin=tmin, tmax=tmax, method='shrunk')
 
 
-def reconstruct_and_save(subject,
-                         raw_filename, epochs_filename, trans_filename,
-                         epochs,
-                         srfilename, lcmvfilename,
-                         debug=False):
-    '''
-    Example function for how to call reconstruct.
-
-    Arguments
-    ---------
-    subject : Subject identifier
-    raw_filename, epochs_filename, trans_filename : str
-        These are passed along to source_reconstruct.get_leadfield
-    epochs : MNE Epochs object
-        The epochs to source reconstruct
-    srfilename : str
-        Where to save average response
-    lcmvfilename : str
-        Where to save source reconstructed data
-
-    Returns
-    -------
-        None
-    '''
-    mne.set_log_level('WARNING')
-
-    estimators = (get_broadband_estimator(),
-                  get_highF_estimator(),
-                  get_lowF_estimator())
-    accumulator = AccumSR(srfilename)
-    cov = get_cov(epochs)
-    forward, bem, source, trans = sr.get_leadfield(
-        subject, raw_filename, epochs_filename, trans_filename)
-    labels = sr.get_labels(subject)
-    epochs = epochs.pick_channels(
-        [x for x in epochs.ch_names if x.startswith('M')])
-
-    if debug:
-        # Select only 2 trials to make debuggin easier
-        epochs = epochs[[str(l) for l in epochs.events[:2, 2]]]
-
-    source_epochs = reconstruct(
-        epochs=epochs,
-        forward=forward,
-        source=source,
-        noise_cov=None,
-        data_cov=cov,
-        labels=labels,
-        func=estimators,
-        accumulator=accumulator)
-
-    source_epochs.to_hdf(lcmvfilename, 'epochs')
-    accumulator.save_averaged_sr()
+def get_filter(info, forward, data_cov, noise_cov, label=None, reg=0.05,
+               pick_ori='max-power'):
+    filter = make_lcmv(info=info,
+                       forward=forward,
+                       data_cov=data_cov,
+                       noise_cov=noise_cov,
+                       reg=0.05,
+                       pick_ori='max-power',
+                       label=label)
+    del filter['data_cov']
+    del filter['noise_cov']
+    del filter['src']
+    return label.name, filter
 
 
-def reconstruct(epochs, forward, source, noise_cov, data_cov, labels,
-                func=None, accumulator=None,
-                first_all_vertices=True, debug=False):
-    '''
-    Perform SR for a set of epochs.
+def get_filters(estimator, epochs, forward, source, noise_cov, data_cov,
+                labels):
+    return {l.name: get_filter(epochs.info, forward, data_cov, noise_cov,
+                               label=l, reg=0.05, pick_ori='max-power')
+            for l in labels}
 
-    Arguments
-    ---------
-        epochs : MNE Epochs object
-        forward : MNE forward solution
-        source : MNE source space
-        noise_cov : MNE noise covariance matrix
-        data_cov : MNE data covariance matrix
-        labels : List of freesurfer labels
-        func : None or list of function tuples
-            func can apply a function to the source-reconstructed data, for
-            example to perform a time-frqeuncy decomposition. The behavior of
-            reconstruct  depends on what this function returns. If it returns
-            a 2D matrix, it  will be interpreted as source_locations*num_F*time
-            array. Importantly these functions will be applied before
-            extraction of labels and the corresponding averaging operation.
-            That is, passing in TFR functions here will perform TFR on all
-            vertices and only afterwards will power be averaged. func itself
-            should be a list of  tuples:  ('identifier', identifier values,
-            function). This allows to label the transformed data appropriately.
-            The resulting data frame will label each reconstructed value with
-            identifier and the corresponding identifier value. If the function
-            returns a 2D matrix, then identifier values needs to match the
-            corresponding dimension (e.g. be the number of frequencies for
-            TFR).
-        first_all_vertices : Bool
-            If True will first compute TFR for every vertex, and then mean 
-            across vertices for a given ROI (slower). If False will first mean 
-            broadband signal across vertices for a given ROI, and then compute 
-            TFR (faster). 
-        accumulator : AccumSR object
-    '''
 
-    if debug:  # Select only 2 trials to make debuggin easier
-        epochs = epochs[[str(l) for l in epochs.events[:2, 2]]]
+def _apply_lcmv(data, filters, info, tmin, max_ori_out):
+    """Apply LCMV spatial filter to data for source reconstruction.
+    Copied directly from MNE to remove dependence on source space in
+    filter. This makes the filter much smaller and easier to use 
+    multiprocessing here.
 
-    results = []
-    if labels is None:
-        labels = []
-    index = epochs.events[:, 2]
-    if not (len(np.unique(index)) == epochs.events.shape[0]):
-        index = np.arange(epochs._data.shape[0])
+    Original authors: 
+    Authors: Alexandre Gramfort <alexandre.gramfort@telecom-paristech.fr>
+              Roman Goj <roman.goj@gmail.com>
+              Britta Westner <britta.wstnr@gmail.com>
 
-    # make filter:
-    filters = make_lcmv(
-        info=epochs.info,
-        forward=forward,
-        data_cov=data_cov,
-        noise_cov=noise_cov,
-        reg=0.05,
-        pick_ori='max-power',
-    )
+    Original License: BSD (3-clause)
+    """
+    from mne.source_estimate import _make_stc
+    from mne.minimum_norm.inverse import combine_xyz
+    if max_ori_out != 'signed':
+        raise ValueError('max_ori_out must be "signed", got %s'
+                         % (max_ori_out,))
 
-    for trial, epoch in zip(index,
-                            apply_lcmv_epochs(
-                                epochs=epochs,
-                                filters=filters,
-                                return_generator=True)):
-
-        for keyname, values, function in func:
-
-            #print('Running', keyname, 'on trial', int(trial))
-
-            if first_all_vertices:
-                transformed = function(epoch.data)
-                tstep = epoch.tstep / \
-                    (float(transformed.shape[2]) / len(epoch.times))
-                for value, row in zip(values, np.arange(transformed.shape[1])):
-                    new_epoch = mne.SourceEstimate(transformed[:, row, :],
-                                                   vertices=epoch.vertices,
-                                                   tmin=epoch.tmin,
-                                                   tstep=tstep,
-                                                   subject=epoch.subject)
-                    srcepoch = extract_labels_from_trial(
-                        new_epoch, labels, int(trial), source)
-                    srcepoch['est_val'] = value
-                    srcepoch['est_key'] = keyname
-                    results.append(srcepoch)
-                    if not accumulator is None:
-                        accumulator.update(keyname, value, new_epoch)
-                    del new_epoch
-            else:
-                srcepoch = extract_labels_from_trial(
-                    epoch, labels, int(trial), source)
-                if not accumulator is None:
-                    accumulator.update(keyname, -1, srcepoch)
-                rois = [r for r in srcepoch.keys() if not (
-                    (r == 'trial') or (r == 'time'))]
-                transformed = function(np.vstack([srcepoch[r] for r in rois]))
-                srcepoch['time'] = np.linspace(min(srcepoch['time']),
-                                               max(srcepoch['time']), transformed.shape[2])
-                for value, row in zip(values, np.arange(transformed.shape[1])):
-                    new_epoch = srcepoch.copy()
-                    for i, r in enumerate(rois):
-                        new_epoch[r] = transformed[i, row]
-                    new_epoch['est_val'] = value
-                    new_epoch['est_key'] = keyname
-                    results.append(new_epoch)
-            del transformed
-        del epoch
-
-    if len(labels) > 0:
-        results = pd.concat([to_df(r) for r in results])
+    if isinstance(data, np.ndarray) and data.ndim == 2:
+        data = [data]
+        return_single = True
     else:
-        results = None
-    return results
+        return_single = False
 
+    W = filters['weights']
 
-def extract_labels_from_trial(epoch, labels, trial, source):
-    srcepoch = {'time': epoch.times, 'trial': trial}
-    for label in labels:
-        try:
-            pca = epoch.extract_label_time_course(
-                label, source, mode='mean')
-            srcepoch[label.name] = pca
-        except ValueError:            
-            print('Source space contains no vertices for', label)
-    return srcepoch
+    #subject = _subject_from_forward(filters)
+    for i, M in enumerate(data):
+        if len(M) != len(filters['ch_names']):
+            raise ValueError('data and picks must have the same length')
 
+        if filters['is_ssp']:
+            raise RuntimeError('SSP not supported here')
 
-class AccumSR(object):
-    '''
-    Accumulate SRs and compute an average.
-    '''
+        if filters['whitener'] is not None:
+            M = np.dot(filters['whitener'], M)
 
-    def __init__(self, filename, keyname, value):
-        self.stc = None
-        self.N = 0
-        self.filename = filename
-        self.keyname = keyname
-        self.value = value
-
-    def update(self, keyname, value, stc):
-        if (self.keyname == keyname) and (self.value == value):
-            if self.stc is None:
-                self.stc = stc.copy()
+        # project to source space using beamformer weights
+        vector = False
+        if filters['is_free_ori']:
+            sol = np.dot(W, M)
+            if filters['pick_ori'] == 'vector':
+                vector = True
             else:
-                self.stc += stc
-            self.N += 1
+                sol = combine_xyz(sol)
+        else:
+            # Linear inverse: do computation here or delayed
+            if (M.shape[0] < W.shape[0] and
+                    filters['pick_ori'] != 'max-power'):
+                sol = (W, M)
+            else:
+                sol = np.dot(W, M)
+            if filters['pick_ori'] == 'max-power' and max_ori_out == 'abs':
+                sol = np.abs(sol)
 
-    def save_averaged_sr(self):
-        if not self.stc is None:
-            stcs = self.stc.copy()
-            idbase = (-.5 < stcs.times) & (stcs.times < 0)
-            m = stcs.data[:, idbase].mean(1)[:, np.newaxis]
-            s = stcs.data[:, idbase].std(1)[:, np.newaxis]
-            stcs.data = (stcs.data - m) / s
-            stcs.save(self.filename)
-            return stcs
-
-
-def get_highF_estimator(sf=600, decim=10):
-    fois = np.arange(10, 151, 5)
-    cycles = 0.1 * fois
-    tb = 2
-    return ('F', fois, get_power_estimator(fois, cycles, tb, sf=sf,
-                                           decim=decim))
-
-
-def get_lowF_estimator(sf=600, decim=10):
-    fois = np.arange(1, 21, 2)
-    cycles = 0.25 * fois
-    tb = 2
-    return ('LF', fois, get_power_estimator(fois, cycles, tb, sf=sf,
-                                            decim=decim))
-
-
-def get_broadband_estimator():
-    return ('BB', [-1], lambda x: x[:, np.newaxis, :])
-
-
-def get_power_estimator(F, cycles, time_bandwidth, sf=600., decim=1):
-    '''
-    Estimate power from source reconstruction
-
-    This will return a num_trials*num_F*time array
-    '''
-    import functools
-
-    def foo(x, sf=600.,
-            foi=None,
-            cycles=None,
-            time_bandwidth=None,
-            n_jobs=None, decim=decim):
-        x = x[np.newaxis, :, :]
-        x = tfr.array_tfr(x,
-                          sf=sf,
-                          foi=foi,
-                          cycles=cycles,
-                          time_bandwidth=time_bandwidth,
-                          n_jobs=4, decim=decim)
-        return x.squeeze()
-
-    return functools.partial(foo, sf=sf,
-                             foi=F,
-                             cycles=cycles,
-                             time_bandwidth=time_bandwidth,
-                             n_jobs=4, decim=decim)
-
-
-def to_df(r):
-    length = len(r['time'])
-    p = {}
-
-    for key in r.keys():
-        try:
-            p[key] = r[key].ravel()
-            if len(p[key]) == 1:
-                p[key] = [r[key]] * length
-        except AttributeError:
-            p[key] = [r[key]] * length
-    return pd.DataFrame(p)
+        tstep = 1.0 / info['sfreq']
+        yield _make_stc(sol, vertices=filters['vertices'], tmin=tmin,
+                        tstep=tstep, subject='NN', vector=vector,
+                        source_nn=filters['source_nn'])
