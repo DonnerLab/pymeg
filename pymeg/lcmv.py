@@ -126,7 +126,7 @@ def reconstruct_tfr(
         pre_estimator=estimator, pre_est_args=est_args, epochs=epochs,
         events=events, times=times, info=info, filters=filters,
         post_func=post_func, accumulate_func=accumulate_func, njobs=njobs)
-    return pd.concat([pd.concat(m, axis=0) for m in M], axis=1)
+    return pd.concat([pd.concat(m, axis=0) for m in M if len(m) > 0], axis=1)
     # return pd.concat(M, axis=1)
 
 
@@ -143,7 +143,7 @@ def reconstruct_broadband(
         events=events, times=times, info=info, filters=filters,
         post_func=None, accumulate_func=accumulate_func, njobs=njobs)
 
-    return pd.concat([pd.concat(m, axis=0) for m in M], axis=1)
+    return pd.concat([pd.concat(m, axis=0) for m in M if len(m) > 0], axis=1)
 
 
 def par_reconstruct(pre_estimator, pre_est_args, epochs, events, times,

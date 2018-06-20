@@ -162,7 +162,7 @@ def make_bem_model(subject, ico=4, conductivity=(0.3, 0.006, 0.3),
 
 
 @memory.cache
-def get_labels(subject, filters=['*wang2015atlas*'],
+def get_labels(subject, filters=['*wang2015atlas*', '*JWDG.lr*'],
                annotations=['HCPMMP1']):
     import glob
     subject_dir = join(subjects_dir, subject)
