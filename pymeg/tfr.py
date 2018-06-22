@@ -3,7 +3,10 @@ import mne
 import locale
 import pandas as pd
 import numpy as np
-import cPickle
+try:
+    import cPickle
+except ModuleNotFoundError:
+    import _pickle as cPickle
 import json
 
 import h5py
@@ -14,8 +17,8 @@ from os.path import expanduser, join
 home = expanduser("~")
 
 from joblib import Memory
-
-memory = Memory(cachedir=join(home, 'cache_pymeg'), verbose=0)
+import os
+memory = Memory(cachedir=os.environ['PYMEG_CACHE_DIR'], verbose=0)
 
 try:
     import seaborn as sns
@@ -27,13 +30,15 @@ except ImportError:
 
 
 def taper_data(foi=None, cycles=None, time_bandwidth=None, **kwargs):
-    foi = np.atleast_1d(foi)
+    foi = np.atleast_1d(foi).astype(float)
     if len(np.atleast_1d(cycles)) == 1:
-        cycles = [cycles] * len(foi)
-    cycles = np.atleast_1d(cycles)
+        cycles = [cycles] * len(foi)        
+    cycles = np.atleast_1d(cycles).astype(float)
+    if len(np.atleast_1d(time_bandwidth)) == 1:
+        time_bandwidth = np.array([time_bandwidth] * len(foi))
     time = cycles / foi
     f_smooth = time_bandwidth / time
-    return zip(list(foi), list(cycles), list(time), list(f_smooth))
+    return zip(list(foi), list(cycles), list(time), list(f_smooth), list(time_bandwidth))
 
 
 def describe_taper(foi=None, cycles=None, time_bandwidth=None, **kwargs):
@@ -43,8 +48,8 @@ def describe_taper(foi=None, cycles=None, time_bandwidth=None, **kwargs):
     '''
     from tabulate import tabulate
     data = taper_data(foi, cycles, time_bandwidth, **kwargs)
-    print tabulate(data,
-                   headers=['Freq', 'Cycles', 't. window', 'F. smooth'])
+    print(tabulate(data,
+                   headers=['Freq', 'Cycles', 't. window', 'F. smooth', '#Tapers+1']))
 
 
 def get_smoothing(F, foi=None, cycles=None, time_bandwidth=None, **kwargs):
@@ -65,29 +70,28 @@ def params_from_json(filename):
 
 
 def tfr(filename, outstr='tfr.hdf', foi=None, cycles=None,
-        time_bandwidth=None, decim=10, n_jobs=4, **kwargs):
+        time_bandwidth=None, decim=10, n_jobs=4, method='multitaper',
+        save=True, **kwargs):
     '''
     Run TFR decomposition with multitapers.
     '''
-    from mne.time_frequency.tfr import _tfr_aux
-
+    from mne.time_frequency.tfr import tfr_multitaper
+    from mne.time_frequency.tfr import tfr_morlet
+    
     outname = filename.replace('epo.fif.gz', outstr)
     epochs = mne.read_epochs(filename)
-    power = epochs_tfr(epochs, foi=foi, cycles=cycles,
-                       time_bandwidth=time_bandwidth,
-                       decim=decim, n_jobs=n_jobs, **kwargs)
-    save_tfr(power, outname, epochs.events)
-    return power
-
-
-def epochs_tfr(epochs, foi=None, cycles=None, time_bandwidth=None,
-               decim=10, n_jobs=4, **kwargs):
-    from mne.time_frequency.tfr import tfr_multitaper
-
-    power = tfr_multitaper(inst=epochs, freqs=foi, average=False,
-                           n_cycles=cycles, time_bandwidth=time_bandwidth,
-                           use_fft=True, decim=decim, n_jobs=n_jobs,
-                           return_itc=False, verbose=None)
+    if method == 'multitaper':
+        power = tfr_multitaper(inst=epochs, freqs=foi, average=False,
+                 n_cycles=cycles, time_bandwidth=time_bandwidth, 
+                 use_fft=True, decim=decim, n_jobs=n_jobs, 
+                 return_itc=False, **kwargs)
+    elif method == 'morlet':
+        power = tfr_morlet(inst=epochs, freqs=foi, average=False,
+                 n_cycles=cycles, output='power',
+                 use_fft=False, decim=decim, n_jobs=n_jobs,
+                 return_itc=False, **kwargs)
+    if save:
+        save_tfr(power, outname, epochs.events)
     return power
 
 
@@ -100,12 +104,11 @@ def array_tfr(epochs, sf=600, foi=None, cycles=None, time_bandwidth=None,
                          n_cycles=cycles,
                          zero_mean=True,
                          time_bandwidth=time_bandwidth,
-                         n_jobs=4,
+                         n_jobs=n_jobs,
                          use_fft=True,
                          output=output)
     return power
-
-
+    
 def tiling_plot(foi=None, cycles=None, time_bandwidth=None, **kwargs):
     colors = sns.cubehelix_palette(len(foi), light=0.75,  start=.5, rot=-.75)
     if len(np.atleast_1d(cycles)) == 1:
@@ -133,7 +136,7 @@ def save_tfr(tfr, fname, events):
         group = file.create_group('pymegtfr')
         group.attrs['freqs'] = tfr.freqs
         group.attrs['times'] = tfr.times
-        group.attrs['channels'] = np.array(tfr.ch_names).astype('str')
+        group.attrs['channels'] = np.string_(tfr.ch_names)
         for event, trial in zip(events[:, 2], tfr.data):
             shape = trial.shape
             chunk_size = (shape[0], 1, 1)
@@ -156,7 +159,7 @@ def get_tfrs(filenames, freq=(0, 100), channel=None, tmin=None, tmax=None,
     '''
     dfs = []
     for f in filenames:
-        print 'Reading ', f
+        print('Reading ', f)
         df = read_chunked_hdf(
             f, freq=freq, channel=channel, tmin=tmin, tmax=tmax)
         if baseline is not None:
@@ -185,7 +188,7 @@ def get_tfr_object(info, filenames, freq=(0, 100),
     '''
     dfs = []
     for f in filenames:
-        print 'Reading ', f
+        print('Reading ', f)
         df = read_chunked_hdf(
             f, freq=freq, channel=channel, tmin=tmin, tmax=tmax)
         dfs.append(df)
@@ -193,16 +196,18 @@ def get_tfr_object(info, filenames, freq=(0, 100),
     freqs = dfs[0]['freqs']
     times = dfs[0]['times']
     channels = dfs[0]['channels']
-    print dfs[0]['data'].shape
     data = np.abs(np.concatenate([d['data'] for d in dfs]))**2
     # Filter info down to correct channels
-    ids = [i for i, ch in enumerate(info['ch_names']) if ch in channels]
-    assert(all(channels == [info['ch_names'][i] for i in ids]))
+    try:
+        ids = [i for i, ch in enumerate(info['ch_names']) if ch in channels]
+        assert(all(channels == [info['ch_names'][i] for i in ids]))
+    except TypeError:
+        ids = [i for i, ch in enumerate(info['ch_names']) if ch in info[
+            'ch_names'][channels] if ch.startswith('M')]
     info['ch_names'] = [info['ch_names'][i] for i in ids]
     info['chs'] = [info['chs'][i] for i in ids]
-    info['nchan'] = len(channels)
-    info._check_consistency()
-    print data.shape, len(info['chs'])
+    info['nchan'] = len(ids)
+    info._check_consistency()    
     return mne.time_frequency.EpochsTFR(info, data, times, freqs)
 
 
@@ -228,7 +233,7 @@ def read_chunked_hdf(fname, epochs=None, channel=None,
         if channel is None:
             ch_id = slice(None)
         else:
-            ch_id = [np.where(out['channels'] == c)[0][0] for c in channel]
+            ch_id = [np.where(out['channels'] == np.string_(c))[0][0] for c in channel]
         events, data = [], []
         if epochs is None:
             epochs = [int(i) for i in hdf.keys()]

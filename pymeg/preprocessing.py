@@ -24,9 +24,9 @@ from pymeg.tools import hilbert
 from pymeg import artifacts
 import logging
 from joblib import Memory
+import os
 
-
-memory = Memory(cachedir='/tmp/')
+memory = Memory(cachedir=os.environ['PYMEG_CACHE_DIR'], verbose=0)
 
 
 def get_trial_periods(events, trial_start, trial_end):
@@ -68,15 +68,15 @@ def get_meta(raw, mapping, trial_pins, trial_start, trial_end, other_pins=None):
 
     events, _ = get_events(raw)
     events = events.astype(float)
-    
+
     if trial_start == trial_end:
         start = np.where(events[:, 2] == trial_start)[0]
         end = np.where(events[:, 2] == trial_end)[0]
-        end = np.concatenate((end[1:]-1, np.array([events.shape[0]])))
+        end = np.concatenate((end[1:] - 1, np.array([events.shape[0]])))
 
     else:
         start, end = get_trial_periods(events, trial_start, trial_end)
-    
+
     trials = []
     for i, (ts, te) in enumerate(zip(start, end)):
         current_trial = {}
@@ -85,7 +85,7 @@ def get_meta(raw, mapping, trial_pins, trial_start, trial_end, other_pins=None):
         if trial_pins:
             # Find any pins that need special treatment, parse them and remove
             # triggers from trial_nums
-            for key, value in trial_pins.iteritems():
+            for key, value in trial_pins.items():
                 if key in trial_nums:
                     pstart = np.where(trial_nums == key)[0][0] + 1
                     pend = pstart + np.where(trial_nums[pstart:] > 8)[0][0] + 1
@@ -95,7 +95,7 @@ def get_meta(raw, mapping, trial_pins, trial_start, trial_end, other_pins=None):
                         (trial_nums[:pstart], trial_nums[pend:]))
                     trial_times = np.concatenate(
                         (trial_times[:pstart], trial_times[pend:]))
-        
+
         for trigger, time in zip(trial_nums, trial_times):
             if trigger in mapping.keys():
                 key = mapping[trigger][0]
@@ -122,7 +122,7 @@ def get_meta(raw, mapping, trial_pins, trial_start, trial_end, other_pins=None):
     # Find other pins that are not trial related
     if other_pins:
         nums = events[:, 2]
-        for key, value in other_pins.iteritems():
+        for key, value in other_pins.items():
             pstarts = np.where(nums == key)[0] + 1
             for pstart in pstarts:
                 t = events[pstart, 0]
@@ -170,16 +170,17 @@ def ant2time_window(r, ant, onsets, epoch_time=(0, 1)):
     '''
     Create an annotation object that only contains events around time window.
 
-    onsets are given in samples as defined in timing structure.
+    onsets are event onsets given in samples as defined in timing structure.
     '''
     onsets = (onsets - r.first_samp) / r.info['sfreq']
-    onsets = onsets + epoch_time[0]
-    ends = onsets + epoch_time[1]
+    event_starts = onsets + epoch_time[0]
+    event_ends = onsets + epoch_time[1]
     new_onset, new_duration, new_description = [], [], []
+
     for ant_onset, ant_duration, description in zip(ant.onset, ant.duration,
                                                     ant.description):
         ant_end = ant_onset + ant_duration
-        if all((ant_end < onsets) | (ends < ant_onset)):
+        if all((ant_end < event_starts) | (event_ends < ant_onset)):
             pass
         else:
             new_onset.append(ant_onset)
@@ -190,58 +191,45 @@ def ant2time_window(r, ant, onsets, epoch_time=(0, 1)):
 
 def get_epoch(raw, meta, timing,
               event='stim_onset_t', epoch_time=(-.2, 1.5),
-              base_event='stim_onset_t', base_time=(-.2, 0),
               epoch_label='hash', reject_time=(None, None)):
     '''
-    Cut out epochs from raw data and apply baseline correction.
+    Cut out epochs from raw data 
 
     Parameters
     ----------
     raw : raw data
     meta, timing : Dataframes that contain meta and timing information
     event : Column in timing that contains event onsets in sample time
-    epoch_time : (start, end) in sec. relative to event onsets defined by 'event'
-    base_event : Column in timing that contains baseline onsets in sample time
-    base_time : (start, end) in sec. relative to baseline onset
+    epoch_time : (start, end) in sec. relative to event onsets defined by 'event'    
     epoch_label : Column in meta that contains epoch labels.
     reject_time : time window for rejection.
     '''
     if reject_time[0] is None:
         reject_time = epoch_time
-
-    fields = set((event, base_event, epoch_label))
-    all_meta = pd.concat([meta, timing], axis=1)
+    print(reject_time)
+    fields = set((event, epoch_label))
     joined_meta = (pd.concat([meta, timing], axis=1)
                    .loc[:, fields]
                    .dropna())
 
     ev = mne_events(joined_meta, event, epoch_label)
-    eb = mne_events(joined_meta, base_event, epoch_label)
 
-    # picks = mne.pick_types(raw.info, meg=True, eeg=False, stim=True,
-    #                       eog=True, chpi=True, emg=True, exclude='bads')
-
-    picks = None
-    base = mne.Epochs(raw, eb, tmin=base_time[0], tmax=base_time[1],
-                      baseline=None, picks=picks,
-                      reject_by_annotation=True)
-
-    ants = raw.annotations
-    rt_ants = ant2time_window(raw, ants, ev[:, 0], reject_time)
-    print('Number of annotations that overlap:', len(rt_ants))
-    raw.annotations = rt_ants
+    annotations = raw.annotations
+    new_ants = ant2time_window(
+        raw, annotations, ev[:, 0], epoch_time=reject_time)
+    print('Overlapping w/bad events:', len(new_ants.onset))
+    raw.annotations = new_ants
     stim_period = mne.Epochs(raw, ev, tmin=epoch_time[0], tmax=epoch_time[1],
-                             baseline=None, picks=picks,
+                             baseline=None,
                              reject_by_annotation=True,
                              reject_tmin=reject_time[0],
                              reject_tmax=reject_time[1])
-    base.load_data()
+
     stim_period.load_data()
-    stim_period, dl = apply_baseline(stim_period, base)
-    # Now filter raw object to only those left.
-    sei = stim_period.events[:, 2]
-    meta = all_meta.reset_index().set_index(epoch_label).loc[sei]
-    raw.annotations = ants
+    if len(stim_period.events) == 0:
+        raise RuntimeError('No trials left')
+    stim_period = stim_period[[str(i) for i in stim_period.events[:, 2]]]
+    raw.annotations = annotations
     return meta, stim_period
 
 
@@ -318,13 +306,17 @@ def concatenate_epochs(epochs, metas):
     processed_metas = []
     for e in ensure_iter(epochs):
         e.info['dev_head_t'] = dev_head_t
-        e = mne.epochs.EpochsArray(e._data, e.info, events=e.events)
+        e = mne.epochs.EpochsArray(e._data, e.info,
+                                   events=e.events, tmin=e.tmin)
         epoch_arrays.append(e)
 
-    for m in ensure_iter(metas):
-        processed_metas.append(m)
+    if metas is not None:
+        for m in ensure_iter(metas):
+            processed_metas.append(m)
 
-    return mne.concatenate_epochs(epoch_arrays), pd.concat(processed_metas)
+        return mne.concatenate_epochs(epoch_arrays), pd.concat(processed_metas)
+    else:
+        return mne.concatenate_epochs(epoch_arrays)
 
 
 def combine_annotations(annotations, first_samples, last_samples, sfreq):
@@ -367,7 +359,7 @@ def combine_annotations(annotations, first_samples, last_samples, sfreq):
 
 
 def ensure_iter(input):
-    if isinstance(input, basestring):
+    if isinstance(input, str):
         yield input
     else:
         try:

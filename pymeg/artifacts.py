@@ -60,9 +60,9 @@ def annotate_jumps(raw, cutoff=25, allowed_before_bad=np.inf):
     logging.info('Annotating jump artifacts')
     arts, z, jumps_per_channel = detect_jumps(raw.copy(), cutoff=cutoff)
     # Need to check for jumps_per_channel
-    bads = [k for k, v in jumps_per_channel.iteritems() if v >
+    bads = [k for k, v in jumps_per_channel.items() if v >
             allowed_before_bad]
-    arts = [arts[k] for k, v in jumps_per_channel.iteritems() if v <=
+    arts = [arts[k] for k, v in jumps_per_channel.items() if v <=
             allowed_before_bad]
 
     if len(bads) > 0:
@@ -206,8 +206,8 @@ def detect_jumps(raw, cutoff=25):
     for i in range(filt.shape[0]):
         filt[i, :] = np.convolve(
             raw._data[i, :], jump_kernel, mode='same') - filt[i, :]
-        filt[i, :len(jump_kernel) / 2] = 0
-        filt[i, -len(jump_kernel) / 2:] = 0
+        filt[i, :int(len(jump_kernel) / 2)] = 0
+        filt[i, -int(len(jump_kernel) / 2):] = 0
 
     # Compute IGR and median
     Qs = np.percentile(filt, [10, 50, 90], axis=1)
@@ -255,6 +255,33 @@ def eye_voltage2gaze(raw, ranges=(-5, 5), screen_x=(0, 1920),
     p = raw[idp, :][0]
     return x, y, p
 
+
+def eye_voltage2gaze_epochs(epochs, ranges=(-5, 5), screen_x=(0, 1920),
+                            screen_y=(0, 1080),
+                            ch_mapping={'x': 'UADC002-3705', 'y': 'UADC003-3705', 'p': 'UADC004-3705'}):
+    '''
+    Convert analog output of EyeLink 1000+ to gaze coordinates.
+    '''
+    minvoltage, maxvoltage = ranges
+    maxrange, minrange = 1., 0.
+    screenright, screenleft = screen_x
+    screenbottom, screentop = screen_y
+
+    idx = np.where(np.array(epochs.ch_names) == ch_mapping['x'])[0][0]
+    R = (epochs._data[:, idx, :].squeeze() -
+         minvoltage) / (maxvoltage - minvoltage)
+    S = R * (maxrange - minrange) + minrange
+    x = S * (screenright - screenleft + 1) + screenleft
+
+    idy = np.where(np.array(epochs.ch_names) == ch_mapping['y'])[0][0]
+    R = (epochs._data[:, idy, :].squeeze() -
+         minvoltage) / (maxvoltage - minvoltage)
+    S = R * (maxrange - minrange) + minrange
+    y = S * (screenbottom - screentop + 1) + screentop
+
+    idp = np.where(np.array(epochs.ch_names) == ch_mapping['p'])[0][0]
+    p = epochs._data[:, idp:].squeeze()
+    return x, y, p
 
 velocity_window_size = 3
 
@@ -387,7 +414,9 @@ def combine_annotations(annotations):
     '''
     Add annotations to a raw object. Makes sure that old annotations are kept.
     '''
-    if len(annotations) == 1:
+    if len(annotations) == 0:
+        return mne.Annotations(np.array([0]), np.array([0]), 'dummy')
+    elif len(annotations) == 1:
         return annotations[0]
     else:
         old = annotations[0]

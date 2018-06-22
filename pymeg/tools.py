@@ -8,20 +8,21 @@ import logging
 
 nthread = multiprocessing.cpu_count()
 
-
-import pyfftw
-pyfftw.interfaces.cache.enable()
-
+try:
+    import pyfftw
+    pyfftw.interfaces.cache.enable()
+except:
+    pyfftw = None
 # Load wisdom from previous plans if it exists
 
-hostname = socket.gethostname()
-cache = os.path.join('%s_fftw.wisdom.pickle' % hostname)
-try:
-    wisdom = pickle.load(open(cache))
-    pyfftw.import_wisdom(wisdom)
-except IOError:
-    print('Did not load wisdom cache')
-    pass
+#hostname = socket.gethostname()
+#cache = os.path.join('%s_fftw.wisdom.pickle' % hostname)
+#try:
+#    wisdom = pickle.load(open(cache))
+#    pyfftw.import_wisdom(wisdom)
+#except IOError:
+#    print('Did not load wisdom cache')
+#    pass
 
 
 def fft(X, shape=None):
@@ -92,7 +93,10 @@ def hilbert(x, N=None):
 
     x = ifft(Xf * h)
     del Xf
-    cPickle.dump(pyfftw.export_wisdom(), open(cache, 'w'))
+    try:
+        cPickle.dump(pyfftw.export_wisdom(), open(cache, 'w'))
+    except:
+        print('Did not save wisdom cache')
     return x
 
 
