@@ -60,9 +60,10 @@ def submit(walltime, memory, cwd, tmpdir,
         shellfname.write(command)
         shellfname = shellfname.name
     if ssh_to is None:
-        "qsub %s" % (shellfname)
+        command = "qsub %s" % (shellfname)
     else:
-        "ssh %s 'qsub %s'" % (ssh_to, shellfname)
+        command = "ssh %s 'qsub %s'" % (ssh_to, shellfname)
+    print(command)
     output = subprocess.check_output(
         command,
         stderr=subprocess.STDOUT,
@@ -107,7 +108,7 @@ def pmap(func, args, walltime=12, memory=10, logdir=None, tmpdir=None,
         script = 'ipython ' + to_script(func, tmpdir, *arg)
         if verbose:
             print(arg, '->', script)
-        pid = submit(walltime, memory, logdir, tmpdir, script, name, env=env)
+        pid = submit(walltime, memory, logdir, tmpdir, script, name, env=env, ssh_to=ssh_to)
         out.append(pid)
     return out
 
