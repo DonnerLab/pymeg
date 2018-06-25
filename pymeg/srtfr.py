@@ -60,7 +60,7 @@ def contrast_controlled_response_contrast(sub, epoch='stimulus'):
     '''
     meta = preprocessing.get_meta_for_subject(sub, 'stimulus')
     for (response, mc) in meta.groupby(['response']):
-        pass,
+        pass
     filter_dict = {'M1': meta.query('response==-1').reset_index().loc[:, 'hash'].values,
                    'P1': meta.query('response==1').reset_index().loc[:, 'hash'].values}
     if sub <= 8:
