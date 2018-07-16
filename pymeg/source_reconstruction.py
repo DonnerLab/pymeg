@@ -221,9 +221,7 @@ def make_trans(subject, raw_filename, epoch_filename, trans_name):
             raise RuntimeError(
                 'Transformation matrix %s already exists' % trans_name)
 
-        print('--------------------------------')
-        print('Please save trans file as:')
-        print(trans_name)
+
 
         cmd = 'mne coreg --high-res-head -d %s -s %s -f %s' % (
             subjects_dir, subject, hs_ref.name)
@@ -231,9 +229,13 @@ def make_trans(subject, raw_filename, epoch_filename, trans_name):
         os.system(cmd)
         mne.gui.coregistration(subject, inst=hs_ref.name,
                                subjects_dir=subjects_dir)
+        print('--------------------------------')
+        print('Please save trans file as:')
+        print(trans_name)
         while not os.path.isfile(trans_name):
-            print('Waiting for transformation matrix to appear')
-            time.sleep(1)
+            #print('Waiting for transformation matrix to appear')
+            time.sleep(5)
+
 
 
 @memory.cache

@@ -1,31 +1,28 @@
-# Plotting
-# matplotlib inline
-import os
-from joblib import Memory
-import glob
 
 import h5py
-# Basics
-
 import numpy as np
+import os
 
-# MNE
+from joblib import Memory
+
 import mne
+
 from mne import create_info
 from mne.epochs import EpochsArray
-
-mne.set_log_level('WARNING')
 
 
 memory = Memory(cachedir=os.environ['PYMEG_CACHE_DIR'], verbose=0)
 
 
 def fix_chs(rawinfo, einfo):
+    ch_names = []
     for k in range(len(einfo['chs'])):
         name = einfo['chs'][k]['ch_name']
-        newchan = [x for x in rawinfo['chs'] if name in x['ch_name']][0]
-        #newchan['ch_name'] = newchan['ch_name'].replace('-3705', '')
+        newchan = [x for x in rawinfo['chs']
+                   if name in x['ch_name']][0]
         einfo['chs'][k] = newchan
+        ch_names.append(newchan['ch_name'])
+    einfo['ch_names'] = ch_names
     return einfo
 
 
@@ -34,10 +31,62 @@ def get_info_for_epochs(rawname):
     raw = mne.io.ctf.read_raw_ctf(rawname)
     return raw.info
 
-# os.chdir("P01/MEG/TFR")
+
+def read_ft_epochs(fname, rawinfo, cachedir=os.environ['PYMEG_CACHE_DIR'],
+                   trialinfo_col=-1):
+    '''
+    Read and cache the output of fieldtrip epochs.
+
+    This function reads a matlab file that contains a 'data' struct with the
+    following fields:
+
+        trialinfo: matrix
+            Dim is ntrials x nr_meta, the columns contain meta information
+            about each trial.
+        label: list of strings
+            Channel names
+        sampleinfo: matrix
+            Dim is ntrials x 2, the first column contains the start sample
+            of each epoch in the raw data.
+        time: array
+            Contains time points for epochs.
+        trial: array
+            Dim is time x channels x trials, contains the actial data
+
+    This data is parsed into an MNE Epochs object. To correctly assign
+    channel locations, types etc. the info structure from the raw data
+    that generated the fieldtrip epochs is used. The channel names in
+    the fieldtrip structure should still be relatable to the raw
+    channel names, relatable here means that a fieldtrip channel name
+    must be contained in the raw channel name.
+
+    Args
+        fname: str
+            Path to .mat file to load
+        rawinfo: mne info structure
+            Info structure with correct channel locations etc. This
+            should be obtained by reading the raw data corresponding
+            to the epochs with MNE.
+        cachedir: str
+            Path where the epochs are saved on disk. If this is
+            None the epochs are returned.
+        trialinfo_col: int
+            Column in trialinfo which contains trial identifier.
+
+    Output
+        Returns path to saved epochs if cachedir is not None, else
+        it returns the epochs
+    '''
+    if cachedir is None:
+        return _load_ft_epochs(fname, rawinfo, trialinfo_col=trialinfo_col)
+    epochs_path = os.path.join(cachedir, fname + '-epo.fif.gz')
+    if not os.path.exists(epochs_path):
+        epochs = _load_ft_epochs(fname, rawinfo, trialinfo_col=trialinfo_col)
+        epochs.save(epochs_path)
+    return epochs_path
 
 
-def load_ft_epochs(fname, rawinfo):
+def _load_ft_epochs(fname, rawinfo, trialinfo_col=-1):
     # load Matlab/Fieldtrip data
     f = h5py.File(fname)
     list(f.keys())
@@ -48,7 +97,7 @@ def load_ft_epochs(fname, rawinfo):
     channels = ft_data['label']
     sampleinfo = ft_data['sampleinfo']
     time = ft_data['time']
-    sfreq = 1 / np.diff(time)
+    sfreq = np.around(1 / np.diff(time[:].ravel()), 2)
     assert(len(np.unique(sfreq)) == 1)
     n_time, n_chans, n_trial = ft_data['trial'].shape
 
@@ -56,38 +105,21 @@ def load_ft_epochs(fname, rawinfo):
     transposed_data = np.transpose(ft_data['trial'])
     for trial in range(n_trial):
         data[trial, :, :] = transposed_data[trial]
+
     data = data[:, range(n_chans), :]
+
     chan_names = []
     for i in range(n_chans):
         st = channels[0][i]
         obj = ft_data[st]
         chan_names.append(''.join(chr(j) for j in obj[:]))
-    ch_names = [x + '-3705' for x in chan_names]
-    info = create_info(ch_names, sfreq)
+    #ch_names = [x + '-3705' for x in chan_names]
+
+    info = create_info(chan_names, sfreq[0])
     events = np.zeros((n_trial, 3), int)
-    events[:, 2] = trialinfo[21]
+    events[:, 2] = trialinfo[trialinfo_col]
     events[:, 0] = sampleinfo[0]
 
-    epochs = EpochsArray(data, info, tmin=time.min(),
-                         events=events, verbose=False)
-
-    fix_chs(rawinfo, epochs.info)
+    epochs = EpochsArray(data, info, events=events, verbose=False)
+    epochs.info = fix_chs(rawinfo, epochs.info)
     return epochs
-
-
-if __name__ == "__main__":
-    # , 'P14', 'P15', 'P16', 'P17', 'P18', 'P19', 'P20', 'P22', 'P23', 'P24', 'P25', 'P28', 'P29', 'P31', 'P33']
-    subjects = ['P01']
-
-    for s in subjects:
-        #os.chdir('/' + str(s) + "/MEG/TFR/")
-        for file in sorted(glob.glob(str(s) + '/MEG/Locked/' + str(s) + '*rec*_stim.mat')):
-            session = str(file[20])
-            recording = str(file[25])
-     #       rawfile = glob.glob(str(s) + '/MEG/Raw/' + '*-0' + str(session) + '*_0' + str(recording) + '.ds')
-            rawfile = glob.glob(str(s) + '/MEG/Raw/' + '*-' +
-                                str(session) + '*_0' + str(recording) + '.ds')
-            rawinfo = get_info_for_epochs(rawfile[0])
-            epochs = load_ft_epochs(file, rawinfo)
-            epochs.save(str(file[:-4]) + '-epo.fif')
-    #    epochs = load_ft_epochs(fname)
