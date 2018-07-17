@@ -1,26 +1,3 @@
-'''
-Compute source reconstruction for all subjects
-
-Succesfull source reconstruction depends on a few things:
-
-fMRI
-    1. Recon-all MRI for each subject
-    2. mne watershed_bem for each subject
-    3. mne make_scalp_surfaces for all subjects
-    4. Coreg the Wang & Kastner atlas to each subject using the scripts
-       in require/apply_occ_wang/bin (apply_template and to_label)
-MEG:
-    5. A piece of sample data for each subject (in fif format)
-    6. Create a coregistration for each subjects MRI with mne coreg
-    7. Create a source space
-    8. Create a bem model
-    9. Create a leadfield
-   10. Compute a noise and data cross spectral density matrix
-       -> Use a data CSD that spans the entire signal duration.
-   11. Run DICS to project epochs into source space
-   12. Extract time course in labels from Atlas.
-
-'''
 import os
 from os.path import join
 import mne
@@ -36,15 +13,14 @@ subjects_dir = os.environ['SUBJECTS_DIR']
 
 
 def set_fs_subjects_dir(directory):
+    """Set freesurfer subjectdir environment variable"""
     global subjects_dir
     os.environ['SUBJECTS_DIR'] = directory
     subjects_dir = directory
 
 
 def check_bems(subjects):
-    '''
-    Create a plot of all BEM segmentations
-    '''
+    """Create a plot of all BEM segmentations."""
     for sub in subjects:
         fig = mne.viz.plot_bem(subject=sub,
                                subjects_dir=subjects_dir,
@@ -54,32 +30,30 @@ def check_bems(subjects):
 
 @memory.cache
 def get_source_space(subject):
-    '''
-    Return source space.
-    Abstract this here to have it unique for everyone.
-    '''
+    """Return source space.
+
+    Mainly a helper function to provide caching of source space
+    computation.
+    """
     return mne.setup_source_space(subject, spacing='oct6',
                                   subjects_dir=subjects_dir,
                                   add_dist=False)
 
 
-def get_trans(subject, session):
-    '''
-    Return filename of transformation for a subject
-    '''
-    file_ident = 'S%i-SESS%i' % (subject, session)
-    return join(trans_dir, file_ident + '-trans.fif')
-
-
 @memory.cache
 def get_info(raw_filename, epochs_filename):
-    '''
-    Return an info dict for a measurement from one subject/session.
+    """Return an info dict for a set of epochs.
 
-    Parameters
-        filename : string
-    Path of a data set for subject/session.
-    '''
+    Args:
+        raw_filename : string
+            Path of raw data that was the basis for creating
+            the epochs.
+        epochs_filename: string
+            Epochs file name.
+
+    Returns:
+        MNE Infor structure.
+    """
     trans, fiducials, info = get_head_correct_info(
         raw_filename, epochs_filename)
     return info
@@ -88,12 +62,11 @@ def get_info(raw_filename, epochs_filename):
 @memory.cache
 def get_leadfield(subject, raw_filename, epochs_filename, trans_filename,
                   conductivity=(0.3, 0.006, 0.3), njobs=4, bem_sub_path='bem'):
-    '''
-    Compute leadfield with presets for this subject
+    """Compute leadfield with presets for this subject
 
-    Arguments
-    ----------
-        subject : string
+    Args:    
+        subject : str
+            Name of freesurfer subject
         raw_filename : str
             Filename that points to the raw data for this lead field.
             This file will be used to extract a CTF transformation matrix
@@ -102,12 +75,17 @@ def get_leadfield(subject, raw_filename, epochs_filename, trans_filename,
             Filename from which fiducial locations will be extracted.
         trans_filename : str
             Points to transformation file between fiducials and MRI.
-        conductivity : 3-tuple of conductivities for BEM model
+        conductivity : 3-tuple of floats
+            Conductivities for BEM model
+        njobs: int
+            Number of cores to paralellize over
+        bem_sub_path: str
+            Sub-path of freesurfer subject path where to read bem
+            surfaces from
 
-    Returns
-    -------
+    Returns:   
         Tuple of (forward model, BEM model, source space)
-    '''
+    """
     src = get_source_space(subject)
     model = make_bem_model(
         subject=subject,
@@ -152,7 +130,6 @@ def make_bem_model(subject, ico=4, conductivity=(0.3, 0.006, 0.3),
     ids = [FIFF.FIFFV_BEM_SURF_ID_BRAIN,
            FIFF.FIFFV_BEM_SURF_ID_SKULL,
            FIFF.FIFFV_BEM_SURF_ID_HEAD]
-    print('Creating the BEM geometry...')
     if len(conductivity) == 1:
         surfaces = surfaces[:1]
         ids = ids[:1]
@@ -163,41 +140,46 @@ def make_bem_model(subject, ico=4, conductivity=(0.3, 0.006, 0.3),
 
 @memory.cache
 def get_labels(subject, filters=['*wang2015atlas*', '*JWDG.lr*'],
-               annotations=['HCPMMP1']):
+               annotations=['HCPMMP1'], sdir=None):
+    """Read ROI labels from annotations and label files.
+
+    This defines the ROIs that can be used for source reconstruction.
+    ROIs originate from either freesurfer annotation files or label 
+    files. 
+
+    Args:
+        subject: str
+            Name of freesurfer subject
+        filters: list of glob strings.
+            A list of strings that select label files by globbing them,
+            e.g. shell based selection of strings ('*wang*' selects all
+            labels that contain the string 'wang').
+        annotations: list of str
+            Name of annotation files to load
+        sdir: str, default None
+            Overwrites freesurfer subject dir.
+
+    Returns:
+        List of MNE label objects.
+    """
+    global subjects_dir
     import glob
-    subject_dir = join(subjects_dir, subject)
+    if sdir is not None:
+        subject_dir = sdir
+    else:
+        subject_dir = subjects_dir
+
     labels = []
     for filter in filters:
-        labels += glob.glob(join(subject_dir, 'label', filter))
+        labels += glob.glob(join(subject_dir, subject, 'label', filter))
     labels = [mne.read_label(label, subject) for label in labels]
     for annotation in annotations:
         annot = mne.read_labels_from_annot(
-            subject, parc=annotation, subjects_dir=subjects_dir)
+            subject, parc=annotation, subjects_dir=subject_dir)
         annot = [a for a in annot if not '???' in a.name]
         labels.extend(annot)
     return labels
 
-
-def add_volume_info(subject, surface, subjects_dir, volume='T1'):
-    """Add volume info from MGZ volume
-    """
-    import os.path as op
-    from mne.bem import _extract_volume_info
-    from mne.surface import (read_surface, write_surface)
-    subject_dir = op.join(subjects_dir, subject)
-    mri_dir = op.join(subject_dir, 'mri')
-    T1_mgz = op.join(mri_dir, volume + '.mgz')
-    new_info = _extract_volume_info(T1_mgz)
-    print(new_info.keys())
-    rr, tris, volume_info = read_surface(surface,
-                                         read_metadata=True)
-
-    # volume_info.update(new_info)  # replace volume info, 'head' stays
-    print(volume_info.keys())
-    import numpy as np
-    if 'head' not in volume_info.keys():
-        volume_info['head'] = np.array([2,  0, 20], dtype=np.int32)
-    write_surface(surface, rr, tris, volume_info=volume_info)
 
 
 '''
@@ -207,6 +189,11 @@ Transformation matrix MEG<>T1 space.
 
 @memory.cache
 def get_head_correct_info(raw_filename, epoch_filename, N=-1):
+    """Get transformation matrix, fiducial positions and infor structure.
+
+    The returned info structure contains fiducial locations computed from 
+    the epoch data. 
+    """
     trans = get_ctf_trans(raw_filename)
     fiducials = get_ref_head_pos(epoch_filename, trans, N=N)
     raw = mne.io.ctf.read_raw_ctf(raw_filename)
@@ -215,9 +202,10 @@ def get_head_correct_info(raw_filename, epoch_filename, N=-1):
 
 
 def make_trans(subject, raw_filename, epoch_filename, trans_name):
-    '''
-    Create coregistration between MRI and MEG space.
-    '''
+    """Create coregistration between MRI and MEG space.
+
+    Call MNE gui to create a MEG<>MRI transformation matrix
+    """
     import os
     import time
     import tempfile
@@ -233,9 +221,7 @@ def make_trans(subject, raw_filename, epoch_filename, trans_name):
             raise RuntimeError(
                 'Transformation matrix %s already exists' % trans_name)
 
-        print('--------------------------------')
-        print('Please save trans file as:')
-        print(trans_name)
+
 
         cmd = 'mne coreg --high-res-head -d %s -s %s -f %s' % (
             subjects_dir, subject, hs_ref.name)
@@ -243,13 +229,29 @@ def make_trans(subject, raw_filename, epoch_filename, trans_name):
         os.system(cmd)
         mne.gui.coregistration(subject, inst=hs_ref.name,
                                subjects_dir=subjects_dir)
+        print('--------------------------------')
+        print('Please save trans file as:')
+        print(trans_name)
         while not os.path.isfile(trans_name):
-            print('Waiting for transformation matrix to appear')
-            time.sleep(1)
+            #print('Waiting for transformation matrix to appear')
+            time.sleep(5)
+
 
 
 @memory.cache
 def get_ref_head_pos(filename,  trans, N=-1):
+    """Compute average head position from epochs.
+
+    Args:
+        filename: str
+            Epochs file to load
+        trans: dict
+            A dictionary that contains t_ctf_dev_dev
+            transformation matrix, e.g. output of
+            get_ctf_trans
+    Returns:
+        Dictionary that contains average fiducial positions.
+    """
     from mne.transforms import apply_trans
     data = preprocessing.load_epochs([filename])[0]
     cc = head_loc(data.decimate(10))
@@ -264,6 +266,21 @@ def get_ref_head_pos(filename,  trans, N=-1):
 
 
 def replace_fiducials(info, fiducials):
+    """Replace initial fiducial measuremnt with new estimates
+
+    CTF systems measure fiducial location at the beginning of the measurement.
+    When used with online head loc over multiple sessions these measurements
+    are not accurate. This is because subjects are guided to the head position
+    of previous sessions.
+
+    Args:
+        info: MNE info structure
+        fiducials: dict
+            Dictionary that contains fiducial positions, e.g.
+            see output of get_ref_head_pos.
+    Returns:
+        Info structure with updated head position.
+    """
     from mne.io import meas_info
     fids = meas_info._make_dig_points(**fiducials)
     info = info.copy()
@@ -271,7 +288,6 @@ def replace_fiducials(info, fiducials):
     for i, d in enumerate(dig):
         if d['kind'] == 3:
             if d['ident'] == 3:
-
                 dig[i]['r'] = fids[2]['r']
             elif d['ident'] == 2:
                 dig[i]['r'] = fids[1]['r']
@@ -282,6 +298,10 @@ def replace_fiducials(info, fiducials):
 
 
 def head_movement(epochs):
+    """Compute head movement from epochs.
+
+    Returns the circumcenter of the three fiducials for each time point.
+    """
     ch_names = np.array(epochs.ch_names)
     channels = {'x': ['HLC0011', 'HLC0012', 'HLC0013'],
                 'y': ['HLC0021', 'HLC0022', 'HLC0023'],
@@ -346,6 +366,7 @@ def head_loc(epochs):
 
 
 def get_ctf_trans(filename):
+    """Get transformation matrix between sensors and head space."""
     from mne.io.ctf.res4 import _read_res4
     from mne.io.ctf.hc import _read_hc
     from mne.io.ctf.trans import _make_ctf_coord_trans_set
@@ -359,20 +380,21 @@ def get_ctf_trans(filename):
 
 
 def circumcenter(coil1, coil2, coil3):
-    # Adapted from:
-    #    http://www.fieldtriptoolbox.org/example/how_to_incorporate_head_movements_in_meg_analysis
-    # CIRCUMCENTER determines the position and orientation of the circumcenter
-    # of the three fiducial markers (MEG headposition coils).
-    #
-    # Input: X,y,z-coordinates of the 3 coils [3 X N],[3 X N],[3 X N] where N
-    # is timesamples/trials.
-    #
-    # Output: X,y,z-coordinates of the circumcenter [1-3 X N], and the
-    # orientations to the x,y,z-axes [4-6 X N].
-    #
-    # A. Stolk, 2012
+    """Determines position and orientation of the circumcenter of fiducials.
+    Adapted from:    
+    http://www.fieldtriptoolbox.org/example/how_to_incorporate_head_movements_in_meg_analysis
+    CIRCUMCENTER determines the position and orientation of the circumcenter
+    of the three fiducial markers (MEG headposition coils).
 
-    # number of timesamples/trials
+    Args:
+        coil1-3: 3xN array
+            X,y,z-coordinates of the 3 coils [3 X N],[3 X N],[3 X N] where N
+            is timesamples/trials.
+    Returns:
+        X,y,z-coordinates of the circumcenter [1-3 X N], and the orientations
+        to the x,y,z-axes [4-6 X N].
+    A. Stolk, 2012
+    """
     N = coil1.shape[1]
     cc = np.zeros((6, N)) * np.nan
     # x-, y-, and z-coordinates of the circumcenter
@@ -449,3 +471,26 @@ def ensure_iter(input):
 
 def clear_cache():
     memory.clear()
+
+
+def add_volume_info(subject, surface, subjects_dir, volume='T1'):
+    """Add volume info from MGZ volume
+    """
+    import os.path as op
+    from mne.bem import _extract_volume_info
+    from mne.surface import (read_surface, write_surface)
+    subject_dir = op.join(subjects_dir, subject)
+    mri_dir = op.join(subject_dir, 'mri')
+    T1_mgz = op.join(mri_dir, volume + '.mgz')
+    new_info = _extract_volume_info(T1_mgz)
+    print(new_info.keys())
+    rr, tris, volume_info = read_surface(surface,
+                                         read_metadata=True)
+
+    # volume_info.update(new_info)  # replace volume info, 'head' stays
+    print(volume_info.keys())
+    import numpy as np
+    if 'head' not in volume_info.keys():
+        volume_info['head'] = np.array([2,  0, 20], dtype=np.int32)
+    write_surface(surface, rr, tris, volume_info=volume_info)
+

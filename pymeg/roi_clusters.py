@@ -70,8 +70,8 @@ glasser = {'LIP': ('LIPd', 'LIPv'),
            'Area6_anterior': ('6ma', '6a'),
            'A10': ('10pp', '10r', '10v'),
            'A6si': ('s6-8', 'i6-8',)}
-for A in ['PEF', '55b', '8Av', '8Ad', '9p', '8Bl', '8C', 'p9-46v', '46', '9-46d', '9a'
-          'p10p', 'a10p', 'a47r', 'p32', 's32', 'a24', '9m', 'd32', 'a32pr', '8BM'
+for A in ['PEF', '55b', '8Av', '8Ad', '9p', '8Bl', '8C', 'p9-46v', '46', '9-46d', '9a',
+          'p10p', 'a10p', 'a47r', 'p32', 's32', 'a24', '9m', 'd32', 'a32pr', '8BM',
           'p24', 'a24', 'p32pr', '24dv', 'p24pr']:
     glasser[A] = A
 
@@ -84,6 +84,27 @@ all_clusters = {}
 all_clusters.update(visual_field_clusters)
 all_clusters.update(jwrois)
 all_clusters.update(glasser)
+
+
+def labels_to_clusters(labels, clusters, hemi='lh'):
+    '''
+    Sort MNE label files into clusters.
+    '''
+    rois2clusters = {}
+    for name, areas in clusters.items():
+        rois2clusters[name] = []
+        for label in labels:
+            for area in ensure_iter(areas):
+                if hemi in label.name:
+                    if area not in label.name:
+                        continue
+                    if ('wang' in label.name) or ('JWDG' in label.name):
+                        rois2clusters[name].append(label)
+                    elif ('L_'+area+'_ROI') in label.name:
+                        rois2clusters[name].append(label)
+                    elif ('R_'+area+'_ROI') in label.name:
+                        rois2clusters[name].append(label)
+    return rois2clusters
 
 
 def rh(columns):
