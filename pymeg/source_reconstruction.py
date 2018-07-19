@@ -180,6 +180,41 @@ def get_labels(subject, filters=['*wang2015atlas*', '*JWDG.lr*'],
         labels.extend(annot)
     return labels
 
+def labels_exclude(labels, exclude=['wang2015atlas.IPS4', 'wang2015atlas.IPS5', 
+                                        'wang2015atlas.SPL', 'JWG_lat_Unknown']):
+    labels_to_exclude = []
+    for l in labels:
+        for ex in exclude:
+            if ex in l.name:
+                labels_to_exclude.append(l)
+    for l in labels_to_exclude:
+        labels.remove(l)
+    return labels
+
+def labels_remove_overlap(labels, priority=['wang', 'JWG'],):
+    
+    vertices_nr_ori = sum([l.vertices.shape[0] for l in labels])
+
+    # get all category 1 labels:
+    labels_priority = []
+    for l in labels:
+        for p in priority:
+            if p in l.name:
+                labels_priority.append(l)
+
+    # remove category1 vertices from all other labels:
+    for i, l in enumerate(labels):
+        if not l in labels_priority:
+            for lp in labels_priority:
+                labels[i] = labels[i].__sub__(lp)
+    
+    vertices_nr_new = sum([l.vertices.shape[0] for l in labels])
+    
+    print('vertices ori: {}'.format(vertices_nr_ori))
+    print('vertices new:  {}'.format(vertices_nr_new))
+    print('excluded: {}'.format(vertices_nr_ori-vertices_nr_new))
+    
+    return labels
 
 
 '''
