@@ -195,18 +195,20 @@ def labels_remove_overlap(labels, priority=['wang', 'JWG'],):
     
     vertices_nr_ori = sum([l.vertices.shape[0] for l in labels])
 
-    # get all category 1 labels:
-    labels_priority = []
+    # get all category 1 vertices:
+    cat1_vertices = []
     for l in labels:
         for p in priority:
             if p in l.name:
-                labels_priority.append(l)
-
+                cat1_vertices.append(l.vertices)
+    cat1_vertices = np.unique(np.concatenate(cat1_vertices))
+        
     # remove category1 vertices from all other labels:
     for i, l in enumerate(labels):
-        if not l in labels_priority:
-            for lp in labels_priority:
-                labels[i] = labels[i].__sub__(lp)
+        for p in priority:
+            if not p in l.name:
+                cat1_indices = np.isin(labels[i].vertices, cat1_vertices)
+                labels[i].vertices = labels[i].vertices[~cat1_indices]
     
     vertices_nr_new = sum([l.vertices.shape[0] for l in labels])
     
