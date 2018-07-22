@@ -180,35 +180,35 @@ def get_labels(subject, filters=['*wang2015atlas*', '*JWDG.lr*'],
         labels.extend(annot)
     return labels
 
-def labels_exclude(labels, exclude=['wang2015atlas.IPS4', 'wang2015atlas.IPS5', 
+def labels_exclude(labels, exclude_filters=['wang2015atlas.IPS4', 'wang2015atlas.IPS5', 
                                         'wang2015atlas.SPL', 'JWG_lat_Unknown']):
     labels_to_exclude = []
     for l in labels:
-        for ex in exclude:
-            if ex in l.name:
-                labels_to_exclude.append(l)
+        is_exclude = np.array([(f in l.name) for f in exclude_filters]).sum() > 0
+        if is_exclude:
+            labels_to_exclude.append(l)
     for l in labels_to_exclude:
         labels.remove(l)
     return labels
 
-def labels_remove_overlap(labels, priority=['wang', 'JWG'],):
+def labels_remove_overlap(labels, priority_filters=['wang', 'JWG'],):
     
     vertices_nr_ori = sum([l.vertices.shape[0] for l in labels])
 
     # get all category 1 vertices:
     cat1_vertices = []
     for l in labels:
-        for p in priority:
-            if p in l.name:
-                cat1_vertices.append(l.vertices)
+        is_priority = np.array([(f in l.name) for f in priority_filters]).sum() > 0
+        if is_priority:
+            cat1_vertices.append(l.vertices)
     cat1_vertices = np.unique(np.concatenate(cat1_vertices))
-        
+
     # remove category1 vertices from all other labels:
     for i, l in enumerate(labels):
-        for p in priority:
-            if not p in l.name:
-                cat1_indices = np.isin(labels[i].vertices, cat1_vertices)
-                labels[i].vertices = labels[i].vertices[~cat1_indices]
+        is_priority = np.array([(f in l.name) for f in priority_filters]).sum() > 0
+        if not is_priority:
+            cat1_indices = np.isin(labels[i].vertices, cat1_vertices)
+            labels[i].vertices = labels[i].vertices[~cat1_indices]
     
     vertices_nr_new = sum([l.vertices.shape[0] for l in labels])
     
