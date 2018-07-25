@@ -168,15 +168,15 @@ def get_clusters():
                         u'lh.wang2015atlas.IPS0-lh', u'rh.wang2015atlas.IPS0-rh', 
                         u'lh.wang2015atlas.IPS1-lh', u'rh.wang2015atlas.IPS1-rh',
                         ),
-         'vfcIPS2345':  (
+         'vfcIPS23':    (
                         u'lh.wang2015atlas.IPS2-lh', u'rh.wang2015atlas.IPS2-rh', 
                         u'lh.wang2015atlas.IPS3-lh', u'rh.wang2015atlas.IPS3-rh',
-                        u'lh.wang2015atlas.IPS4-lh', u'rh.wang2015atlas.IPS4-rh', 
-                        u'lh.wang2015atlas.IPS5-lh', u'rh.wang2015atlas.IPS5-rh',
+                        # u'lh.wang2015atlas.IPS4-lh', u'rh.wang2015atlas.IPS4-rh', 
+                        # u'lh.wang2015atlas.IPS5-lh', u'rh.wang2015atlas.IPS5-rh',
                         ),
-         'vfcSPL':      (
-                        u'lh.wang2015atlas.SPL1-lh', u'rh.wang2015atlas.SPL1-rh',
-                        ),
+         # 'vfcSPL':      (
+         #                u'lh.wang2015atlas.SPL1-lh', u'rh.wang2015atlas.SPL1-rh',
+         #                ),
          'vfcFEF':      (
                         u'lh.wang2015atlas.FEF-lh', u'rh.wang2015atlas.FEF-rh',
                         ),
@@ -213,8 +213,9 @@ def get_clusters():
          'JWG_M1':                                  ('lh.JWG_lat_M1-lh', 'rh.JWG_lat_M1-rh',),
     }
 
-    # all_clusters = {**visual_field_clusters, **glasser_clusters, **jwg_clusters}
-    all_clusters = dict(visual_field_clusters.items() + glasser_clusters.items() + jwg_clusters.items())
+    all_clusters = {**visual_field_clusters, **glasser_clusters, **jwg_clusters}
+    all_clusters = {**visual_field_clusters, **jwg_clusters}
+    # all_clusters = dict(visual_field_clusters.items() + glasser_clusters.items() + jwg_clusters.items())
     areas = [item for sublist in [all_clusters[k] for k in all_clusters.keys()] for item in sublist]
     print(areas)
 
