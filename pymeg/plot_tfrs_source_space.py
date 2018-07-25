@@ -135,7 +135,7 @@ def load_tfr_contrast(subj, sessions, areas, conditions, timelock, baseline_time
             
             # data to baseline:
             if timelock == 'resplock':
-                tfr_data_to_baseline = load_tfr_data(subj, session, 'stimlock')
+                tfr_data_to_baseline = load_tfr_data(subj, session, 'stimlock', data_folder)
             else:
                 tfr_data_to_baseline = tfr_data
             
