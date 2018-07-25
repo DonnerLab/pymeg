@@ -50,11 +50,12 @@ def get_broadband_estimator():
     return ('BB', [-1], lambda x: x[:, np.newaxis, :])
 
 def do_source_recon(subj, session, njobs=4):
-
-		# # make transformation matrix:
-        # runs = sorted([run.split('/')[-1] for run in glob.glob(os.path.join(data_folder, "raw", subj, session, "meg", "*.ds"))])
-        # center = int(np.floor(len(runs) / 2.0))
-        # raw_filename = os.path.join(data_folder, "raw", subj, session, "meg", runs[center])
+        
+        runs = sorted([run.split('/')[-1] for run in glob.glob(os.path.join(data_folder, "raw", subj, session, "meg", "*.ds"))])
+        center = int(np.floor(len(runs) / 2.0))
+        raw_filename = os.path.join(data_folder, "raw", subj, session, "meg", runs[center])
+        
+        # # make transformation matrix:
         # sr.make_trans(subj, raw_filename, epochs_filename, trans_filename)
 
         epochs_filename_stim = os.path.join(data_folder, "epochs", subj, session, '{}-epo.fif.gz'.format('stimlock'))
@@ -138,12 +139,11 @@ def do_source_recon(subj, session, njobs=4):
 
 
 if __name__ == "__main__":
-	                
-    subjects = ['jw01', 'jw02', 'jw03', 'jw05', 'jw07', 'jw08', 'jw09', 'jw10', 'jw11', 'jw12', 'jw13', 'jw14', 'jw15', 'jw16', 'jw17', 'jw18', 'jw19', 'jw20', 'jw21', 'jw22', 'jw23', 'jw24', 'jw30']
-    # subjects = ['jw14', 'jw15',]
-    # problem with jw14
+                    
+    # subjects = ['jw01', 'jw02', 'jw03', 'jw05', 'jw07', 'jw08', 'jw09', 'jw10', 'jw11', 'jw12', 'jw13', 'jw14', 'jw15', 'jw16', 'jw17', 'jw18', 'jw19', 'jw20', 'jw21', 'jw22', 'jw23', 'jw24', 'jw30']
+    subjects = ['jw08', 'jw09', 'jw10', 'jw11', 'jw12', 'jw13', 'jw14', 'jw15', 'jw16', 'jw17', 'jw18', 'jw19', 'jw20', 'jw21', 'jw22', 'jw23', 'jw24', 'jw30']
     for subj in subjects:
-    	# get_glasser_labels(subj)
-        for session in ['A', 'B']
-        	do_source_recon(subj, session, njobs=24)
+        # get_glasser_labels(subj)
+        for session in ['A', 'B']:
+            do_source_recon(subj, session, njobs=24)
                
