@@ -135,87 +135,110 @@ def get_hcp_labels(subjects_dir, subjects):
 def get_clusters():
 
     visual_field_clusters = {
-         'vfcvisual':   (
-                        u'lh.wang2015atlas.V1d-lh', u'rh.wang2015atlas.V1d-rh',
-                        u'lh.wang2015atlas.V1v-lh', u'rh.wang2015atlas.V1v-rh',
-                        u'lh.wang2015atlas.V2d-lh', u'rh.wang2015atlas.V2d-rh',
-                        u'lh.wang2015atlas.V2v-lh', u'rh.wang2015atlas.V2v-rh',
-                        u'lh.wang2015atlas.V3d-lh', u'rh.wang2015atlas.V3d-rh',
-                        u'lh.wang2015atlas.V3v-lh', u'rh.wang2015atlas.V3v-rh',
-                        u'lh.wang2015atlas.hV4-lh', u'rh.wang2015atlas.hV4-rh',
-                        ),
-         'vfcVO':       (
-                        u'lh.wang2015atlas.VO1-lh', u'rh.wang2015atlas.VO1-rh', 
-                        u'lh.wang2015atlas.VO2-lh', u'rh.wang2015atlas.VO2-rh',
-                        ),
-         'vfcPHC':      (
-                        u'lh.wang2015atlas.PHC1-lh', u'rh.wang2015atlas.PHC1-rh',
-                        u'lh.wang2015atlas.PHC2-lh', u'rh.wang2015atlas.PHC2-rh',
-                        ),
-         'vfcV3ab':     (
-                        u'lh.wang2015atlas.V3A-lh', u'rh.wang2015atlas.V3A-rh', 
-                        u'lh.wang2015atlas.V3B-lh', u'rh.wang2015atlas.V3B-rh',
-                        ),
-         'vfcTO':       (
-                        u'lh.wang2015atlas.TO1-lh', u'rh.wang2015atlas.TO1-rh', 
-                        u'lh.wang2015atlas.TO2-lh', u'rh.wang2015atlas.TO2-rh',
-                        ),
-         'vfcLO':       (
-                        u'lh.wang2015atlas.LO1-lh', u'rh.wang2015atlas.LO1-rh', 
-                        u'lh.wang2015atlas.LO2-lh', u'rh.wang2015atlas.LO2-rh',
-                        ),
-         'vfcIPS01':    (
-                        u'lh.wang2015atlas.IPS0-lh', u'rh.wang2015atlas.IPS0-rh', 
-                        u'lh.wang2015atlas.IPS1-lh', u'rh.wang2015atlas.IPS1-rh',
-                        ),
-         'vfcIPS23':    (
-                        u'lh.wang2015atlas.IPS2-lh', u'rh.wang2015atlas.IPS2-rh', 
-                        u'lh.wang2015atlas.IPS3-lh', u'rh.wang2015atlas.IPS3-rh',
-                        # u'lh.wang2015atlas.IPS4-lh', u'rh.wang2015atlas.IPS4-rh', 
-                        # u'lh.wang2015atlas.IPS5-lh', u'rh.wang2015atlas.IPS5-rh',
-                        ),
-         # 'vfcSPL':      (
-         #                u'lh.wang2015atlas.SPL1-lh', u'rh.wang2015atlas.SPL1-rh',
-         #                ),
-         'vfcFEF':      (
-                        u'lh.wang2015atlas.FEF-lh', u'rh.wang2015atlas.FEF-rh',
-                        ),
+        'vfcPrimary':                               [
+                                                    u'lh.wang2015atlas.V1d-lh', u'rh.wang2015atlas.V1d-rh',
+                                                    u'lh.wang2015atlas.V1v-lh', u'rh.wang2015atlas.V1v-rh',
+                                                    ],
+        'vfcEarly':                                 [
+                                                    u'lh.wang2015atlas.V2d-lh', u'rh.wang2015atlas.V2d-rh',
+                                                    u'lh.wang2015atlas.V2v-lh', u'rh.wang2015atlas.V2v-rh',
+                                                    u'lh.wang2015atlas.V3d-lh', u'rh.wang2015atlas.V3d-rh',
+                                                    u'lh.wang2015atlas.V3v-lh', u'rh.wang2015atlas.V3v-rh',
+                                                    u'lh.wang2015atlas.hV4-lh', u'rh.wang2015atlas.hV4-rh',
+                                                    ],
+        'vfcVO':                                    [
+                                                    u'lh.wang2015atlas.VO1-lh', u'rh.wang2015atlas.VO1-rh', 
+                                                    u'lh.wang2015atlas.VO2-lh', u'rh.wang2015atlas.VO2-rh',
+                                                    ],
+        'vfcPHC':                                   [
+                                                    u'lh.wang2015atlas.PHC1-lh', u'rh.wang2015atlas.PHC1-rh',
+                                                    u'lh.wang2015atlas.PHC2-lh', u'rh.wang2015atlas.PHC2-rh',
+                                                    ],
+        'vfcV3ab':                                  [
+                                                    u'lh.wang2015atlas.V3A-lh', u'rh.wang2015atlas.V3A-rh', 
+                                                    u'lh.wang2015atlas.V3B-lh', u'rh.wang2015atlas.V3B-rh',
+                                                    ],
+        'vfcTO':                                    [
+                                                    u'lh.wang2015atlas.TO1-lh', u'rh.wang2015atlas.TO1-rh', 
+                                                    u'lh.wang2015atlas.TO2-lh', u'rh.wang2015atlas.TO2-rh',
+                                                    ],
+        'vfcLO':                                    [
+                                                    u'lh.wang2015atlas.LO1-lh', u'rh.wang2015atlas.LO1-rh', 
+                                                    u'lh.wang2015atlas.LO2-lh', u'rh.wang2015atlas.LO2-rh',
+                                                    ],
+        'vfcIPS01':                                 [
+                                                    u'lh.wang2015atlas.IPS0-lh', u'rh.wang2015atlas.IPS0-rh', 
+                                                    u'lh.wang2015atlas.IPS1-lh', u'rh.wang2015atlas.IPS1-rh',
+                                                    ],
+        'vfcIPS23':                                 [
+                                                    u'lh.wang2015atlas.IPS2-lh', u'rh.wang2015atlas.IPS2-rh', 
+                                                    u'lh.wang2015atlas.IPS3-lh', u'rh.wang2015atlas.IPS3-rh',
+                                                    # u'lh.wang2015atlas.IPS4-lh', u'rh.wang2015atlas.IPS4-rh', 
+                                                    # u'lh.wang2015atlas.IPS5-lh', u'rh.wang2015atlas.IPS5-rh',
+                                                    ],
+        # 'vfcSPL':                                 [
+        #                                           u'lh.wang2015atlas.SPL1-lh', u'rh.wang2015atlas.SPL1-rh',
+        #                                           ),
+        'vfcFEF':                                   [
+                                                    u'lh.wang2015atlas.FEF-lh', u'rh.wang2015atlas.FEF-rh',
+                                                    ],
          }
 
-    glasser_clusters = {
-         'HCPMMP1_visual_primary':                  ('lh.HCPMMP1_01_visual_primary-lh', 'rh.HCPMMP1_01_visual_primary-rh',),
-         'HCPMMP1_visual_early':                    ('lh.HCPMMP1_02_visual_early-lh', 'rh.HCPMMP1_02_visual_early-rh',),
-         'HCPMMP1_visual_dors':                     ('lh.HCPMMP1_03_visual_dors-lh', 'rh.HCPMMP1_03_visual_dors-rh',),
-         'HCPMMP1_visual_ventral':                  ('lh.HCPMMP1_04_visual_ventral-lh', 'rh.HCPMMP1_04_visual_ventral-rh',),
-         'HCPMMP1_visual_lateral':                  ('lh.HCPMMP1_05_visual_lateral-lh', 'rh.HCPMMP1_05_visual_lateral-rh',),
-         'HCPMMP1_somatosensory_motor':             ('lh.HCPMMP1_06_somatosensory_motor-lh', 'rh.HCPMMP1_06_somatosensory_motor-rh',),
-         'HCPMMP1_paracentral_lob_mid_cingulate':   ('lh.HCPMMP1_07_paracentral_lob_mid_cingulate-lh', 'rh.HCPMMP1_07_paracentral_lob_mid_cingulate-rh',),
-         'HCPMMP1_premotor':                        ('lh.HCPMMP1_08_premotor-lh', 'rh.HCPMMP1_08_premotor-rh',),
-         'HCPMMP1_opercular_posterior':             ('lh.HCPMMP1_09_opercular_posterior-lh', 'rh.HCPMMP1_09_opercular_posterior-rh',),
-         'HCPMMP1_auditory_primary':                ('lh.HCPMMP1_10_auditory_primary-lh', 'rh.HCPMMP1_10_auditory_primary-rh',),
-         'HCPMMP1_auditory_association':            ('lh.HCPMMP1_11_auditory_association-lh', 'rh.HCPMMP1_11_auditory_association-rh',),
-         'HCPMMP1_insular_frontal_opercular':       ('lh.HCPMMP1_12_insular_frontal_opercular-lh', 'rh.HCPMMP1_12_insular_frontal_opercular-rh',),
-         'HCPMMP1_temporal_medial':                 ('lh.HCPMMP1_13_temporal_medial-lh', 'rh.HCPMMP1_13_temporal_medial-rh',),
-         'HCPMMP1_lateral_temporal':                ('lh.HCPMMP1_14_lateral_temporal-lh', 'rh.HCPMMP1_14_lateral_temporal-rh',),
-         'HCPMMP1_temp_par_occ_junc':               ('lh.HCPMMP1_15_temporal_parietal_occipital_junction-lh', 'rh.HCPMMP1_15_temporal_parietal_occipital_junction-rh',),
-         'HCPMMP1_parietal_superior':               ('lh.HCPMMP1_16_parietal_superior-lh', 'rh.HCPMMP1_16_parietal_superior-rh',),
-         'HCPMMP1_parietal_inferior':               ('lh.HCPMMP1_17_parietal_inferior-lh', 'rh.HCPMMP1_17_parietal_inferior-rh',),
-         'HCPMMP1_cingulate_posterior':             ('lh.HCPMMP1_18_cingulate_posterior-lh', 'rh.HCPMMP1_18_cingulate_posterior-rh',),
-         'HCPMMP1_cingulate_anterior':              ('lh.HCPMMP1_19_cingulate_anterior_prefrontal_medial-lh', 'rh.HCPMMP1_19_cingulate_anterior_prefrontal_medial-rh',),
-         'HCPMMP1_frontal_orbital_polar':           ('lh.HCPMMP1_20_frontal_orbital_polar-lh', 'rh.HCPMMP1_20_frontal_orbital_polar-rh',),
-         'HCPMMP1_frontal_inferior':                ('lh.HCPMMP1_21_frontal_inferior-lh', 'rh.HCPMMP1_21_frontal_inferior-rh',),
-         'HCPMMP1_prefrontal_dorsolateral':         ('lh.HCPMMP1_22_prefrontal_dorsolateral-lh', 'rh.HCPMMP1_22_prefrontal_dorsolateral-rh',),
-    }
-
     jwg_clusters = {
-         'JWG_aIPS':                                ('lh.JWG_lat_aIPS-lh', 'rh.JWG_lat_aIPS-rh',),
-         'JWG_IPS_PCeS':                            ('lh.JWG_lat_IPS_PCeS-lh', 'rh.JWG_lat_IPS_PCeS-rh',),
-         'JWG_M1':                                  ('lh.JWG_lat_M1-lh', 'rh.JWG_lat_M1-rh',),
+        'JWG_aIPS':                                 ['lh.JWG_lat_aIPS-lh', 'rh.JWG_lat_aIPS-rh',],
+        'JWG_IPS_PCeS':                             ['lh.JWG_lat_IPS_PCeS-lh', 'rh.JWG_lat_IPS_PCeS-rh',],
+        'JWG_M1':                                   ['lh.JWG_lat_M1-lh', 'rh.JWG_lat_M1-rh',],
     }
 
-    all_clusters = {**visual_field_clusters, **glasser_clusters, **jwg_clusters}
-    all_clusters = {**visual_field_clusters, **jwg_clusters}
-    # all_clusters = dict(visual_field_clusters.items() + glasser_clusters.items() + jwg_clusters.items())
+    glasser_clusters = {
+        'HCPMMP1_visual_primary':                   ['L_{}_ROI-lh'.format(area) for area in ['V1']]+\
+                                                    ['R_{}_ROI-rh'.format(area) for area in ['V1']],
+        'HCPMMP1_visual_dors':                      ['L_{}_ROI-lh'.format(area) for area in ['V2', 'V3', 'V4']]+\
+                                                    ['R_{}_ROI-rh'.format(area) for area in ['V2', 'V3', 'V4']],
+        'HCPMMP1_visual_ventral':                   ['L_{}_ROI-lh'.format(area) for area in ['V3A', 'V3B', 'V6', 'V6A', 'V7', 'IPS1']]+\
+                                                    ['R_{}_ROI-rh'.format(area) for area in ['V3A', 'V3B', 'V6', 'V6A', 'V7', 'IPS1']],
+        'HCPMMP1_visual_lateral':                   ['L_{}_ROI-lh'.format(area) for area in ['V3CD', 'LO1', 'LO2', 'LO3', 'V4t', 'FST', 'MT', 'MST', 'PH']]+\
+                                                    ['R_{}_ROI-rh'.format(area) for area in ['V3CD', 'LO1', 'LO2', 'LO3', 'V4t', 'FST', 'MT', 'MST', 'PH']],
+        'HCPMMP1_somato_sens_motor':                ['L_{}_ROI-lh'.format(area) for area in ['4', '3a', '3b', '1', '2']]+\
+                                                    ['R_{}_ROI-rh'.format(area) for area in ['4', '3a', '3b', '1', '2']],
+        'HCPMMP1_paracentral_midcingulate':         ['L_{}_ROI-lh'.format(area) for area in ['24dd', '24dv', '6mp', '6ma', 'SCEF', '5m', '5L', '5mv']]+\
+                                                    ['R_{}_ROI-rh'.format(area) for area in ['24dd', '24dv', '6mp', '6ma', 'SCEF', '5m', '5L', '5mv']],
+        'HCPMMP1_premotor':                         ['L_{}_ROI-lh'.format(area) for area in ['55b', '6d', '6a', 'FEF', '6v', '6r', 'PEF']]+\
+                                                    ['R_{}_ROI-rh'.format(area) for area in ['55b', '6d', '6a', 'FEF', '6v', '6r', 'PEF']],        
+        'HCPMMP1_pos_opercular':                    ['L_{}_ROI-lh'.format(area) for area in ['43', 'FOP1', 'OP4', 'OP1', 'OP2-3', 'PFcm']]+\
+                                                    ['R_{}_ROI-rh'.format(area) for area in ['43', 'FOP1', 'OP4', 'OP1', 'OP2-3', 'PFcm']],
+        'HCPMMP1_audiotory_early':                  ['L_{}_ROI-lh'.format(area) for area in ['A1', 'LBelt', 'MBelt', 'PBelt', 'RI']]+\
+                                                    ['R_{}_ROI-rh'.format(area) for area in ['A1', 'LBelt', 'MBelt', 'PBelt', 'RI']],
+        'HCPMMP1_audiotory_association':            ['L_{}_ROI-lh'.format(area) for area in ['A4', 'A5', 'STSdp', 'STSda', 'STSvp', 'STSva', 'STGa', 'TA2']]+\
+                                                    ['R_{}_ROI-rh'.format(area) for area in ['A4', 'A5', 'STSdp', 'STSda', 'STSvp', 'STSva', 'STGa', 'TA2']],
+        'HCPMMP1_insular_front_opercular':          ['L_{}_ROI-lh'.format(area) for area in ['52', 'PI', 'Ig', 'PoI1', 'PoI2', 'FOP2', 'FOP3', 'MI', 'AVI', 'AAIC', 'Pir', 'FOP4', 'FOP5']]+\
+                                                    ['R_{}_ROI-rh'.format(area) for area in ['52', 'PI', 'Ig', 'PoI1', 'PoI2', 'FOP2', 'FOP3', 'MI', 'AVI', 'AAIC', 'Pir', 'FOP4', 'FOP5']],
+        'HCPMMP1_temporal_med':                     ['L_{}_ROI-lh'.format(area) for area in ['H', 'PreS', 'EC', 'PeEc', 'PHA1', 'PHA2', 'PHA3']]+\
+                                                    ['R_{}_ROI-rh'.format(area) for area in ['H', 'PreS', 'EC', 'PeEc', 'PHA1', 'PHA2', 'PHA3']],
+        'HCPMMP1_temporal_lat':                     ['L_{}_ROI-lh'.format(area) for area in ['PHT', 'TE1p', 'TE1m', 'TE1a', 'TE2p', 'TE2a', 'TGv', 'TGd', 'TF']]+\
+                                                    ['R_{}_ROI-rh'.format(area) for area in ['PHT', 'TE1p', 'TE1m', 'TE1a', 'TE2p', 'TE2a', 'TGv', 'TGd', 'TF']],
+        'HCPMMP1_temp_par_occ_junction':            ['L_{}_ROI-lh'.format(area) for area in ['TPOJ1', 'TPOJ2', 'TPOJ3', 'STV', 'PSL']]+\
+                                                    ['R_{}_ROI-rh'.format(area) for area in ['TPOJ1', 'TPOJ2', 'TPOJ3', 'STV', 'PSL']],
+        'HCPMMP1_partietal_sup':                    ['L_{}_ROI-lh'.format(area) for area in ['LIPv', 'LIPd', 'VIP', 'AIP', 'MIP', '7PC', '7AL', '7Am', '7PL', '7Pm']]+\
+                                                    ['R_{}_ROI-rh'.format(area) for area in ['LIPv', 'LIPd', 'VIP', 'AIP', 'MIP', '7PC', '7AL', '7Am', '7PL', '7Pm']],
+        'HCPMMP1_partietal_inf':                    ['L_{}_ROI-lh'.format(area) for area in ['PGp', 'PGs', 'PGi', 'PFm', 'PF', 'PFt', 'PFop', 'IP0', 'IP1', 'IP2']]+\
+                                                    ['R_{}_ROI-rh'.format(area) for area in ['PGp', 'PGs', 'PGi', 'PFm', 'PF', 'PFt', 'PFop', 'IP0', 'IP1', 'IP2']],
+        'HCPMMP1_cingulate_pos':                    ['L_{}_ROI-lh'.format(area) for area in ['DVT', 'ProS', 'POS1', 'POS2', 'RSC', 'v23ab', 'd23ab', '31pv', '31pd', '31a', '23d', '23c', 'PCV', '7m']]+\
+                                                    ['R_{}_ROI-rh'.format(area) for area in ['DVT', 'ProS', 'POS1', 'POS2', 'RSC', 'v23ab', 'd23ab', '31pv', '31pd', '31a', '23d', '23c', 'PCV', '7m']],
+        'HCPMMP1_frontal_orbital_polar':            ['L_{}_ROI-lh'.format(area) for area in ['33pr', 'p24pr', 'a24pr', 'p24', 'a24', 'p32pr', 'a32pr', 'd32', 'p32', 's32', '8BM', '9m', '10v', '10r', '25']]+\
+                                                    ['R_{}_ROI-rh'.format(area) for area in ['33pr', 'p24pr', 'a24pr', 'p24', 'a24', 'p32pr', 'a32pr', 'd32', 'p32', 's32', '8BM', '9m', '10v', '10r', '25']],
+        'HCPMMP1_frontal_inferior':                 ['L_{}_ROI-lh'.format(area) for area in ['47s', '47m', 'a47r', '11l', '13l', 'a10p', 'p10p', '10pp', '10d', 'OFC', 'pOFC']]+\
+                                                    ['R_{}_ROI-rh'.format(area) for area in ['47s', '47m', 'a47r', '11l', '13l', 'a10p', 'p10p', '10pp', '10d', 'OFC', 'pOFC']],
+        'HCPMMP1_insular_front_opercular':          ['L_{}_ROI-lh'.format(area) for area in ['44', '45', 'IFJp', 'IFJa', 'IFSp', 'IFSa', '47l', 'p47r']]+\
+                                                    ['R_{}_ROI-rh'.format(area) for area in ['44', '45', 'IFJp', 'IFJa', 'IFSp', 'IFSa', '47l', 'p47r']],
+        'HCPMMP1_dlpfc':                            ['L_{}_ROI-lh'.format(area) for area in ['8C', '8Av', 'i6-8', 's6-8', 'SFL', '8BL', '9p', '9a', '8Ad', 'p9-46v', 'a9-46v', '46', '9-46d']]+\
+                                                    ['R_{}_ROI-rh'.format(area) for area in ['8C', '8Av', 'i6-8', 's6-8', 'SFL', '8BL', '9p', '9a', '8Ad', 'p9-46v', 'a9-46v', '46', '9-46d']],
+        }
+    
+    all_clusters = {}
+    all_clusters.update(visual_field_clusters)
+    all_clusters.update(jwg_clusters)
+    all_clusters.update(glasser_clusters)
     areas = [item for sublist in [all_clusters[k] for k in all_clusters.keys()] for item in sublist]
     print(areas)
 
