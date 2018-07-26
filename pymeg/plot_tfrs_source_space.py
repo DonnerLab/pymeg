@@ -48,7 +48,7 @@ fig_folder = 'Z:\\JW\\figures'
 def load_tfr_data(subj, session, timelock, data_folder):
     
     # chunk filenames:
-    tfr_data_filenames = glob.glob(os.path.join(data_folder, "source_level", "lcmv_{}_{}_{}*-source.hdf".format(subj, session, timelock,)))
+    tfr_data_filenames = glob.glob(os.path.join(data_folder, "source_level", "lcmv_{}_{}_{}_LF*-source.hdf".format(subj, session, timelock,)))
 
     # load and make pivot table:
     tfrs = []
@@ -100,7 +100,14 @@ def baseline_per_sensor_apply(tfr, baseline):
         return (x - bval) / bval * 100
     return tfr.groupby(['freq', 'area']).apply(div)
 
-def make_tfr_contrasts(tfr_data, meta_data, area, condition, tfr_data_to_baseline, baseline_time=(-0.25, -0.15)):
+# def make_tfr_contrasts(tfr_data, meta_data, subj, session, area, condition, tfr_data_to_baseline, baseline_time=(-0.25, -0.15)):
+def make_tfr_contrasts(arg):
+    
+    # unpack:
+    tfr_data, meta_data, subj, session, area, condition, tfr_data_to_baseline, baseline_time = arg
+
+    print(area)
+    print(condition)
 
     condition_ind = meta_data.loc[meta_data[condition]==1, "hash"]
 
@@ -116,47 +123,47 @@ def make_tfr_contrasts(tfr_data, meta_data, area, condition, tfr_data_to_baselin
 
     # apply baseline, and collapse across sensors:
     tfr_data_condition = baseline_per_sensor_apply(tfr_data_condition, baseline=baseline).groupby(['freq',]).mean()
-        
+    
+    # append:
+    tfr_data_condition['subj'] = subj
+    tfr_data_condition['session'] = session
+    tfr_data_condition['area'] = area
+    tfr_data_condition['condition'] = condition
+    tfr_data_condition = tfr_data_condition.set_index(['subj', 'session', 'area', 'condition',], append=True, inplace=False)
+    tfr_data_condition = tfr_data_condition.reorder_levels(['subj', 'session', 'area', 'condition', 'freq'])
+
     return tfr_data_condition
 
 @memory.cache
-def load_tfr_contrast(subj, sessions, areas, conditions, timelock, baseline_time, data_folder):
+def load_tfr_contrast(subj, sessions, conditions, timelock, baseline_time, data_folder, n_jobs=20):
 
-    tfr_conditions = []
+    tfrs = []
 
     for session in sessions:
         print(session)
 
-        try: # some subjects have only one session...
+        # load data:
+        tfr_data = load_tfr_data(subj, session, timelock, data_folder)
+        meta_data = load_meta_data(subj, session, timelock, data_folder)
 
-            # load data:
-            tfr_data = load_tfr_data(subj, session, timelock, data_folder)
-            meta_data = load_meta_data(subj, session, timelock, data_folder)
-            
-            # data to baseline:
-            if timelock == 'resplock':
-                tfr_data_to_baseline = load_tfr_data(subj, session, 'stimlock', data_folder)
-            else:
-                tfr_data_to_baseline = tfr_data
-            
-            # compute contrasts:
-            for area in areas:
-                for condition in conditions:
+        # data to baseline:
+        if timelock == 'resplock':
+            tfr_data_to_baseline = load_tfr_data(subj, session, 'stimlock', data_folder)
+        else:
+            tfr_data_to_baseline = tfr_data
+        
+        # areas:
+        areas = np.unique(tfr_data.index.get_level_values('area'))
+        
+        # compute contrasts:
+        arg_instances = [(tfr_data, meta_data, subj, session, area, condition, tfr_data_to_baseline, baseline_time) for area in areas for condition in conditions]
+        tfr_conditions = Parallel(n_jobs=n_jobs, verbose=1, backend="threading")(map(delayed(make_tfr_contrasts), arg_instances))
 
-                    print(area)
-                    print(condition)
-                    tfr_data_condition = make_tfr_contrasts(tfr_data, meta_data, area, condition, tfr_data_to_baseline, baseline_time)
-                    tfr_data_condition['subj'] = subj
-                    tfr_data_condition['session'] = session
-                    tfr_data_condition['area'] = area
-                    tfr_data_condition['condition'] = condition
-                    tfr_data_condition = tfr_data_condition.set_index(['subj', 'session', 'area', 'condition',], append=True, inplace=False)
-                    tfr_data_condition = tfr_data_condition.reorder_levels(['subj', 'session', 'area', 'condition', 'freq'])
-                    tfr_conditions.append(tfr_data_condition)
-        except:
-            pass
-    tfr_condition = pd.concat(tfr_conditions)
-    return tfr_condition
+        # tfr_conditions = Parallel(n_jobs=n_jobs)(delayed(make_tfr_contrasts)
+        tfrs.append(pd.concat(tfr_conditions))
+
+    tfrs = pd.concat(tfrs)
+    return tfrs
 
 def plot_tfr(tfr, time_cutoff, vmin, vmax, tl, cluster_correct=False, threshold=0.05, ax=None):
 
@@ -226,26 +233,28 @@ if __name__ == '__main__':
                 'pupil': ['pupil_h', 'pupil_l'],
                 }
     conditions = [item for sublist in [contrasts[k] for k in contrasts.keys()] for item in sublist]
-    conditions = ['all', 'hit', 'fa', 'miss', 'cr', 'left', 'right', 'pupil_h', 'pupil_l']
     
     # load for all subjects:    
     tfr_conditions_stim = []
     tfr_conditions_resp = []
     for subj in subjects:
-        tfr_conditions_stim.append(load_tfr_contrast(subj=subj, sessions=['A','B'], areas=areas, conditions=conditions, 
+        tfr_conditions_stim.append(load_tfr_contrast(subj=subj, sessions=['A','B'], conditions=conditions, 
                                                         timelock='stimlock', baseline_time=(-0.25, -0.15), 
                                                         data_folder=data_folder))
-        tfr_conditions_resp.append(load_tfr_contrast(subj=subj, sessions=['A','B'], areas=areas, conditions=conditions, 
+        tfr_conditions_resp.append(load_tfr_contrast(subj=subj, sessions=['A','B'], conditions=conditions, 
                                                         timelock='resplock', baseline_time=(-0.25, -0.15),
                                                         data_folder=data_folder))
     tfr_conditions_stim = pd.concat(tfr_conditions_stim)
     tfr_conditions_resp = pd.concat(tfr_conditions_resp)
+
+    shell()
 
     # mean across sessions:
     tfr_conditions_stim = tfr_conditions_stim.groupby(['subj', 'area', 'condition', 'freq']).mean()
     tfr_conditions_resp = tfr_conditions_resp.groupby(['subj', 'area', 'condition', 'freq']).mean()
     
     for cluster in all_clusters.keys():
+        cluster = 'HCPMMP1_visual_lateral'
         print(cluster)
         for c in contrasts.keys():
             print(c)
@@ -280,6 +289,8 @@ if __name__ == '__main__':
                                                          (tfr_condition.index.isin([condition], level='condition'))]\
                                         for area in all_clusters[cluster]]).groupby(['subj', 'freq']).mean()\
                                         for condition in contrasts[c]]
+
+                shell()
 
                 # create contrasts:
                 if c == 'all':
