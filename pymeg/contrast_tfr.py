@@ -50,6 +50,43 @@ def baseline_per_sensor_apply(tfr, baseline):
     return tfr.groupby(['freq', 'area']).apply(div)
 
 
+@memory.cache
+def load_tfr_contrast(data_globstring, base_globstring, meta_data, conditions,
+                      baseline_time, n_jobs=4):
+    """Load a set of data files and turn them into contrasts.
+    """
+
+    tfrs = []
+    # load data:
+    tfr_data = load_tfr_data(data_globstring)
+    # Make sure that meta_data and tfr_data overlap in trials
+    tfr_trials = np.unique(tfr_data.index.get_level_values('trial').values)
+    meta_trials = np.unique(meta_data.reset_index().loc[:, 'hash'].values)
+    assert(any([t in meta_trials for t in tfr_trials]))
+
+    # data to baseline:
+    if not (data_globstring == base_globstring):
+        tfr_data_to_baseline = load_tfr_data(base_globstring)
+    else:
+        tfr_data_to_baseline = tfr_data
+
+    areas = np.unique(tfr_data.index.get_level_values('area'))
+
+    # compute contrasts:
+    from itertools import product
+    tasks = []
+    for area, condition in product(areas, conditions):
+        tasks.append((tfr_data, tfr_data_to_baseline, meta_data,
+                      area, condition, baseline_time))
+
+    tfr_conditions = Parallel(n_jobs=n_jobs, verbose=1, backend='threading')(
+        delayed(make_tfr_contrasts)(*task) for task in tasks)
+
+    tfrs.append(pd.concat(tfr_conditions))
+    tfrs = pd.concat(tfrs)
+    return tfrs
+
+
 def make_tfr_contrasts(tfr_data, tfr_data_to_baseline, meta_data, area,
                        condition, baseline_time):
 
@@ -80,45 +117,17 @@ def make_tfr_contrasts(tfr_data, tfr_data_to_baseline, meta_data, area,
     tfr_data_condition['area'] = area
     tfr_data_condition['condition'] = condition
     tfr_data_condition = tfr_data_condition.set_index(
-        ['subj', 'session', 'area', 'condition', ], append=True, inplace=False)
+        ['area', 'condition', ], append=True, inplace=False)
     tfr_data_condition = tfr_data_condition.reorder_levels(
-        ['subj', 'session', 'area', 'condition', 'freq'])
-
+        ['area', 'condition', 'freq'])
+    #tfr_data_condition = tfr_data_condition.set_index(
+    #    ['area'], append=True, inplace=False)
+    #tfr_data_condition = tfr_data_condition.reorder_levels(
+    #    ['area', 'freq'])
     return tfr_data_condition
 
 
 @memory.cache
-def load_tfr_contrast(data_globstring, base_globstring, meta_data, conditions,
-                      baseline_time, n_jobs=4):
-    """Load a set of data files and turn them into contrasts.
-    """
-    tfrs = []
-    # load data:
-    tfr_data = load_tfr_data(data_globstring)
-
-    # data to baseline:
-    if not (data_globstring == base_globstring):
-        tfr_data_to_baseline = load_tfr_data(base_globstring)
-    else:
-        tfr_data_to_baseline = tfr_data
-
-    areas = np.unique(tfr_data.index.get_level_values('area'))
-
-    # compute contrasts:
-    from itertools import product
-    tasks = []
-    for area, condition in product(areas, conditions):
-        tasks.append(delayed(tfr_data, tfr_data_to_baseline, meta_data,
-                             area, condition, baseline_time))
-
-    tfr_conditions = Parallel(n_jobs=n_jobs, verbose=1,
-                              backend="threading")(tasks)
-
-    tfrs.append(pd.concat(tfr_conditions))
-    tfrs = pd.concat(tfrs)
-    return tfrs
-
-
 def compute_contrast(contrast, weights, hemi, data_globstring, base_globstring,
                      meta_data, baseline_time, n_jobs=15):
     """Compute a single contrast from tfr data
@@ -145,19 +154,20 @@ def compute_contrast(contrast, weights, hemi, data_globstring, base_globstring,
 
     """
     all_clusters, visual_field_clusters, glasser_clusters, jwg_clusters = atlas_glasser.get_clusters()
-
+    print('redo')
     # load for all subjects:
     tfr_condition = []
 
     tfr_condition.append(
         load_tfr_contrast(data_globstring, base_globstring, meta_data,
-                          contrast, baseline_time, n_jobs=4))
+                          contrast, baseline_time, n_jobs=n_jobs))
     tfr_condition = pd.concat(tfr_condition)
 
     # mean across sessions:
     tfr_condition = tfr_condition.groupby(
-        ['subj', 'area', 'condition', 'freq']).mean()
-    cluster_contrasts = {}
+        ['area', 'condition', 'freq']).mean()
+    cluster_contrasts = []
+    import functools
     for cluster in all_clusters.keys():
         right = []
         left = []
@@ -168,8 +178,8 @@ def compute_contrast(contrast, weights, hemi, data_globstring, base_globstring,
                 area_idx = tfr_condition.index.isin([area], level='area')
                 condition_idx = tfr_condition.index.isin(
                     [condition], level='condition')
-                subset = tfr_condition.loc[area_idx & condition_idx].groupby(
-                    ['subj', 'freq']).mean()
+                subset = tfr_condition.loc[area_idx & condition_idx].groupby(                    
+                    ['freq']).mean()
                 if 'rh' in area:
                     tfrs_rh.append(subset)
                 else:
@@ -188,5 +198,30 @@ def compute_contrast(contrast, weights, hemi, data_globstring, base_globstring,
                     for i in range(len(left))]
         assert(len(tfrs) == len(weights))
         tfrs = [tfr * weight for tfr, weight in zip(tfrs, weights)]
-        cluster_contrasts[cluster] = reduce(lambda x, y: x + y, tfrs)
-    return cluster_contrasts
+        tfrs = functools.reduce(lambda x, y: x + y, tfrs)
+        tfrs.loc[:, 'cluster'] = cluster
+        cluster_contrasts.append(tfrs)
+    return pd.concat(cluster_contrasts)
+
+
+def augment_data(meta, response_left, stimulus):
+    """Augment meta data with fields for specific cases
+
+    Args:
+        meta: DataFrame
+        response_left: ndarray
+            1 if subject made a left_response / yes response
+        stimulus: ndarray
+            1 if a left_response is correct
+    """
+    # add columns:
+    meta["all"] = 1
+
+    meta["left"] = response_left.astype(int)
+    meta["right"] = (~response_left).astype(int)
+
+    meta["hit"] = ((response_left == 1) & (stimulus == 1)).astype(int)
+    meta["fa"] = ((response_left == 1) & (stimulus == 0)).astype(int)
+    meta["miss"] = ((response_left == 0) & (stimulus == 1)).astype(int)
+    meta["cr"] = ((response_left == 0) & (stimulus == 0)).astype(int)
+    return meta
