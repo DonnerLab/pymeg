@@ -10,18 +10,44 @@ from pymeg import atlas_glasser
 memory = Memory(cachedir=os.environ['PYMEG_CACHE_DIR'], verbose=0)
 
 
-def load_tfr_data(globstring):  # subj, session, timelock, data_folder):
-    """Load all files identified by glob string"""
-    tfr_data_filenames = glob(globstring)
-    tfrs = []
-    for f in tfr_data_filenames:
-        tfr = pd.read_hdf(f)
-        tfr = pd.pivot_table(tfr.reset_index(), values=tfr.columns, index=[
-                             'trial', 'est_val'], columns='time').stack(-2)
-        tfr.index.names = ['trial', 'freq', 'area']
-        tfrs.append(tfr)
-    tfr = pd.concat(tfrs)
-    return tfr
+class Cache(object):
+    """A cache that can prevent reloading from disk. 
+
+    Can be used as a context manager.
+    """
+    def __init__(self, cache=True):
+        self.store = {}
+        self.cache= cache
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self):
+        self.clear()
+
+    def get(self, globstring):
+        if self.cache:
+            if globstring not in self.store:
+                self.store[globstring] = self._load_tfr_data(globstring)
+            return self.store[globstring]
+        else:
+            return self._load_tfr_data(globstring)
+
+    def clear(self):
+        self.cache = {}
+
+    def _load_tfr_data(self, globstring):
+        """Load all files identified by glob string"""
+        tfr_data_filenames = glob(globstring)
+        tfrs = []
+        for f in tfr_data_filenames:
+            tfr = pd.read_hdf(f)
+            tfr = pd.pivot_table(tfr.reset_index(), values=tfr.columns, index=[
+                                 'trial', 'est_val'], columns='time').stack(-2)
+            tfr.index.names = ['trial', 'freq', 'area']
+            tfrs.append(tfr)
+        tfr = pd.concat(tfrs)
+        return tfr
 
 
 def baseline_per_sensor_get(tfr, baseline_time=(-0.25, -0.15)):
@@ -50,15 +76,14 @@ def baseline_per_sensor_apply(tfr, baseline):
     return tfr.groupby(['freq', 'area']).apply(div)
 
 
-@memory.cache
+@memory.cache(ignore=['cache'])
 def load_tfr_contrast(data_globstring, base_globstring, meta_data, conditions,
-                      baseline_time, n_jobs=4):
+                      baseline_time, n_jobs=4, cache=Cache(cache=False)):
     """Load a set of data files and turn them into contrasts.
     """
-
     tfrs = []
     # load data:
-    tfr_data = load_tfr_data(data_globstring)
+    tfr_data = cache.get(data_globstring)
     # Make sure that meta_data and tfr_data overlap in trials
     tfr_trials = np.unique(tfr_data.index.get_level_values('trial').values)
     meta_trials = np.unique(meta_data.reset_index().loc[:, 'hash'].values)
@@ -66,7 +91,7 @@ def load_tfr_contrast(data_globstring, base_globstring, meta_data, conditions,
 
     # data to baseline:
     if not (data_globstring == base_globstring):
-        tfr_data_to_baseline = load_tfr_data(base_globstring)
+        tfr_data_to_baseline = cache.get(base_globstring)
     else:
         tfr_data_to_baseline = tfr_data
 
@@ -120,16 +145,12 @@ def make_tfr_contrasts(tfr_data, tfr_data_to_baseline, meta_data, area,
         ['area', 'condition', ], append=True, inplace=False)
     tfr_data_condition = tfr_data_condition.reorder_levels(
         ['area', 'condition', 'freq'])
-    #tfr_data_condition = tfr_data_condition.set_index(
-    #    ['area'], append=True, inplace=False)
-    #tfr_data_condition = tfr_data_condition.reorder_levels(
-    #    ['area', 'freq'])
     return tfr_data_condition
 
 
-@memory.cache
+#@memory.cache(ignore=['cache'])
 def compute_contrast(contrast, weights, hemi, data_globstring, base_globstring,
-                     meta_data, baseline_time, n_jobs=15):
+                     meta_data, baseline_time, n_jobs=15, cache=Cache(cache=False)):
     """Compute a single contrast from tfr data
     Args:
         contrast: list
@@ -154,13 +175,12 @@ def compute_contrast(contrast, weights, hemi, data_globstring, base_globstring,
 
     """
     all_clusters, visual_field_clusters, glasser_clusters, jwg_clusters = atlas_glasser.get_clusters()
-    print('redo')
     # load for all subjects:
     tfr_condition = []
 
     tfr_condition.append(
         load_tfr_contrast(data_globstring, base_globstring, meta_data,
-                          contrast, baseline_time, n_jobs=n_jobs))
+                          contrast, baseline_time, n_jobs=n_jobs, cache=cache))
     tfr_condition = pd.concat(tfr_condition)
 
     # mean across sessions:
@@ -178,7 +198,7 @@ def compute_contrast(contrast, weights, hemi, data_globstring, base_globstring,
                 area_idx = tfr_condition.index.isin([area], level='area')
                 condition_idx = tfr_condition.index.isin(
                     [condition], level='condition')
-                subset = tfr_condition.loc[area_idx & condition_idx].groupby(                    
+                subset = tfr_condition.loc[area_idx & condition_idx].groupby(
                     ['freq']).mean()
                 if 'rh' in area:
                     tfrs_rh.append(subset)
@@ -187,6 +207,7 @@ def compute_contrast(contrast, weights, hemi, data_globstring, base_globstring,
 
             left.append(pd.concat(tfrs_lh))
             right.append(pd.concat(tfrs_rh))
+        import pdb; pdb.set_trace()
         if hemi == 'lh_is_ipsi':
             tfrs = [left[i] - right[i]
                     for i in range(len(left))]
