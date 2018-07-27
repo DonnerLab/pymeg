@@ -15,14 +15,15 @@ class Cache(object):
 
     Can be used as a context manager.
     """
+
     def __init__(self, cache=True):
         self.store = {}
-        self.cache= cache
+        self.cache = cache
 
     def __enter__(self):
         return self
 
-    def __exit__(self):
+    def __exit__(self, type, value, traceback):
         self.clear()
 
     def get(self, globstring):
@@ -207,7 +208,7 @@ def compute_contrast(contrast, weights, hemi, data_globstring, base_globstring,
 
             left.append(pd.concat(tfrs_lh))
             right.append(pd.concat(tfrs_rh))
-        import pdb; pdb.set_trace()
+
         if hemi == 'lh_is_ipsi':
             tfrs = [left[i] - right[i]
                     for i in range(len(left))]
