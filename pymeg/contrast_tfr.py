@@ -12,7 +12,7 @@ memory = Memory(cachedir=os.environ['PYMEG_CACHE_DIR'], verbose=0)
 
 
 class Cache(object):
-    """A cache that can prevent reloading from disk. 
+    """A cache that can prevent reloading from disk.
 
     Can be used as a context manager.
     """
@@ -253,3 +253,100 @@ def augment_data(meta, response_left, stimulus):
     meta["miss"] = ((response_left == 0) & (stimulus == 1)).astype(int)
     meta["cr"] = ((response_left == 0) & (stimulus == 0)).astype(int)
     return meta
+
+
+def plot_contrasts(tfr_data, contrasts, areas):
+    all_clusters, vf_clusters, glasser_clusters, jwg_clusters = atlas_glasser.get_clusters()
+    areas = ['vfcPrimary', 'vfcEarly', 'vfcVO', 'vfcPHC', 'vfcV3ab',
+             'vfcTO', 'vfcLO', 'vfcIPS01', 'vfcIPS23', 'vfcFEF',
+             'JWG_aIPS', 'JWG_IPS_PCeS', 'JWG_M1']
+    areas += glasser_clusters.keys()
+
+    for row, area in enumerate(areas):
+        for col, contrast in enumerate(contrasts):
+            plt.subplot(len(areas), len(contrasts * 2))
+            data = tfr_data.query(
+                'area=="%s" & contrast=="%s" % epoch=="stimulus"')
+            plot_tfr(tfr, (-0.25, 1.35), -15, 15, 'stimulus')
+
+
+def set_jw_style():
+    import matplotlib
+    import seaborn as sns
+    matplotlib.rcParams['pdf.fonttype'] = 42
+    matplotlib.rcParams['ps.fonttype'] = 42
+    sns.set(style='ticks', font='Arial', font_scale=1, rc={
+        'axes.linewidth': 0.25,
+        'axes.labelsize': 7,
+        'axes.titlesize': 7,
+        'xtick.labelsize': 6,
+        'ytick.labelsize': 6,
+        'legend.fontsize': 6,
+        'xtick.major.width': 0.25,
+        'ytick.major.width': 0.25,
+        'text.color': 'Black',
+        'axes.labelcolor': 'Black',
+        'xtick.color': 'Black',
+        'ytick.color': 'Black', })
+    sns.plotting_context()
+
+
+def plot_tfr(tfr, time_cutoff, vmin, vmax, tl, cluster_correct=False, threshold=0.05, ax=None):
+    from mne.stats import permutation_cluster_1samp_test as permutation_test
+    import pylab as plt
+    # colorbar:
+    from matplotlib.colors import LinearSegmentedColormap
+    cmap = LinearSegmentedColormap.from_list(
+        'custom', ['blue', 'lightblue', 'lightgrey', 'yellow', 'red'], N=100)
+
+    # variables:
+    times = np.array(tfr.columns, dtype=float)
+    freqs = np.array(
+        np.unique(tfr.index.get_level_values('freq')), dtype=float)
+    time_ind = (times > time_cutoff[0]) & (times < time_cutoff[1])
+    time_ind = (times > time_cutoff[0]) & (times < time_cutoff[1])
+
+    # data:
+    X = np.stack(
+        [tfr.loc[tfr.index.isin([subj], level='subj'), time_ind].values
+         for subj in np.unique(tfr.index.get_level_values('subj'))]
+    )
+
+    # grand average plot:
+    cax = ax.pcolormesh(times[time_ind], freqs, X.mean(
+        axis=0), vmin=vmin, vmax=vmax, cmap=cmap)
+
+    # cluster stats:
+    if cluster_correct:
+        if tl == 'stimulus':
+            test_data = X[:, :, times[time_ind] > 0]
+            times_test_data = times[time_ind][times[time_ind] > 0]
+        else:
+            test_data = X.copy()
+            times_test_data = times[time_ind]
+        try:
+            T_obs, clusters, cluster_p_values, h0 = permutation_test(
+                test_data, threshold={'start': 0, 'step': 0.2},
+                connectivity=None, tail=0, n_permutations=1000, n_jobs=10)
+            sig = cluster_p_values.reshape(
+                (test_data.shape[1], test_data.shape[2]))
+            ax.contour(times_test_data, freqs, sig, (threshold,),
+                       linewidths=0.5, colors=('black'))
+        except:
+            pass
+
+    ax.axvline(0, ls='--', lw=0.75, color='black',)
+
+    if tl == 'stimulus':
+        ax.set_xlabel('Time from stimulus (s)')
+        ax.axvline(-0.25, ls=':', lw=0.75, color='black',)
+        ax.axvline(-0.15, ls=':', lw=0.75, color='black',)
+        ax.set_ylabel('Frequency (Hz)')
+        # ax.set_title('{} contrast'.format(c))
+    else:
+        ax.set_xlabel('Time from report (s)')
+        # ax.set_title('N = {}'.format(len(subjects)))
+        ax.tick_params(labelleft='off')
+        plt.colorbar(cax, ticks=[vmin, 0, vmax])
+
+    return ax
