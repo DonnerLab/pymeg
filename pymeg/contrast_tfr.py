@@ -4,6 +4,7 @@ from glob import glob
 import numpy as np
 from joblib import Parallel, delayed
 from joblib import Memory
+import logging
 
 from pymeg import atlas_glasser
 
@@ -30,6 +31,8 @@ class Cache(object):
         if self.cache:
             if globstring not in self.store:
                 self.store[globstring] = self._load_tfr_data(globstring)
+            else:
+                logging.info('Returning cached object:', globstring)
             return self.store[globstring]
         else:
             return self._load_tfr_data(globstring)
@@ -39,7 +42,8 @@ class Cache(object):
 
     def _load_tfr_data(self, globstring):
         """Load all files identified by glob string"""
-        tfr_data_filenames = glob(globstring)
+        logging.info('Loading data for:', globstring)
+        tfr_data_filenames = glob(globstring)    
         tfrs = []
         for f in tfr_data_filenames:
             tfr = pd.read_hdf(f)
@@ -189,6 +193,7 @@ def compute_contrast(contrast, weights, hemi, data_globstring, base_globstring,
         ['area', 'condition', 'freq']).mean()
     cluster_contrasts = []
     import functools
+    logging.info('Start computing contrast %s for clusters' % contrast)
     for cluster in all_clusters.keys():
         right = []
         left = []
@@ -223,6 +228,7 @@ def compute_contrast(contrast, weights, hemi, data_globstring, base_globstring,
         tfrs = functools.reduce(lambda x, y: x + y, tfrs)
         tfrs.loc[:, 'cluster'] = cluster
         cluster_contrasts.append(tfrs)
+    logging.info('Done compute contrast')
     return pd.concat(cluster_contrasts)
 
 
