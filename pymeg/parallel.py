@@ -162,9 +162,9 @@ def pmap(func, args, cluster='PBS', walltime=12, memory=10, logdir=None, tmpdir=
         if verbose:
             print(arg, '->', script)
         if cluster.upper() == 'PBS':
-            nodes = '%i:ppn=%i' % (nodes, tasks)
+            node_statement = '%i:ppn=%i' % (nodes, tasks)
             pid = submit(walltime, memory, logdir, tmpdir,
-                         script, name, env=env, nodes=nodes)
+                         script, name, env=env, nodes=node_statement)
         elif cluster.upper() == 'SLURM':
             pid = slurm_submit(walltime, memory, logdir, tmpdir, script, name, env=env,
                                email=email, nodes=nodes, tasks=tasks)
