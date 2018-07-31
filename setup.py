@@ -14,4 +14,4 @@ setup(name='pyMEG',
       author_email='nwilming@uke.de',
       url='https://github.com/DonnerLab/pymeg',
       packages=['pymeg'],
-      scripts=['scripts/to_cluster'])
+      scripts=['scripts/to_cluster', 'scripts/reconall.sh'])
