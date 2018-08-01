@@ -10,6 +10,8 @@ from pymeg import atlas_glasser
 
 memory = Memory(cachedir=os.environ['PYMEG_CACHE_DIR'], verbose=0)
 
+backend = 'loky'
+
 
 class Cache(object):
     """A cache that can prevent reloading from disk.
@@ -32,7 +34,7 @@ class Cache(object):
             if globstring not in self.store:
                 self.store[globstring] = self._load_tfr_data(globstring)
             else:
-                logging.info('Returning cached object:', globstring)
+                logging.info('Returning cached object: %s' % globstring)
             return self.store[globstring]
         else:
             return self._load_tfr_data(globstring)
@@ -42,8 +44,8 @@ class Cache(object):
 
     def _load_tfr_data(self, globstring):
         """Load all files identified by glob string"""
-        logging.info('Loading data for:', globstring)
-        tfr_data_filenames = glob(globstring)    
+        logging.info('Loading data for: %s' % globstring)
+        tfr_data_filenames = glob(globstring)
         tfrs = []
         for f in tfr_data_filenames:
             tfr = pd.read_hdf(f)
@@ -83,7 +85,7 @@ def baseline_per_sensor_apply(tfr, baseline):
 
 @memory.cache(ignore=['cache'])
 def load_tfr_contrast(data_globstring, base_globstring, meta_data, conditions,
-                      baseline_time, n_jobs=4, cache=Cache(cache=False)):
+                      baseline_time, n_jobs=1, cache=Cache(cache=False)):
     """Load a set of data files and turn them into contrasts.
     """
     tfrs = []
@@ -109,7 +111,7 @@ def load_tfr_contrast(data_globstring, base_globstring, meta_data, conditions,
         tasks.append((tfr_data, tfr_data_to_baseline, meta_data,
                       area, condition, baseline_time))
 
-    tfr_conditions = Parallel(n_jobs=n_jobs, verbose=1, backend='threading')(
+    tfr_conditions = Parallel(n_jobs=n_jobs, verbose=1, backend=backend)(
         delayed(make_tfr_contrasts)(*task) for task in tasks)
 
     tfrs.append(pd.concat(tfr_conditions))
@@ -224,8 +226,10 @@ def compute_contrast(contrast, weights, hemi, data_globstring, base_globstring,
             tfrs = [(right[i] + left[i]) / 2
                     for i in range(len(left))]
         assert(len(tfrs) == len(weights))
+
         tfrs = [tfr * weight for tfr, weight in zip(tfrs, weights)]
         tfrs = functools.reduce(lambda x, y: x + y, tfrs)
+        tfrs = tfrs.groupby('freq').mean()
         tfrs.loc[:, 'cluster'] = cluster
         cluster_contrasts.append(tfrs)
     logging.info('Done compute contrast')
