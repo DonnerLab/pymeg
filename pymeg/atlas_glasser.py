@@ -184,9 +184,9 @@ def get_clusters():
     }
 
     jwg_clusters = {
-        'JWG_aIPS': ['lh.JWG_lat_aIPS-lh', 'rh.JWG_lat_aIPS-rh', ],
-        'JWG_IPS_PCeS': ['lh.JWG_lat_IPS_PCeS-lh', 'rh.JWG_lat_IPS_PCeS-rh', ],
-        'JWG_M1': ['lh.JWG_lat_M1-lh', 'rh.JWG_lat_M1-rh', ],
+        'JWG_aIPS': ['lh.JWDG.lr_aIPS1-lh', 'rh.JWDG.lr_aIPS1-rh', ],
+        'JWG_IPS_PCeS': ['lh.JWDG.lr_IPS_PCes-lh', 'rh.JWDG.lr_IPS_PCes-rh', ],
+        'JWG_M1': ['lh.JWDG.lr_M1-lh', 'rh.JWDG.lr_M1-rh', ],
     }
 
     glasser_clusters = {

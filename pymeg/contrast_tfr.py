@@ -157,7 +157,7 @@ def make_tfr_contrasts(tfr_data, tfr_data_to_baseline, meta_data, area,
 
 #@memory.cache(ignore=['cache'])
 def compute_contrast(contrast, weights, hemi, data_globstring, base_globstring,
-                     meta_data, baseline_time, n_jobs=15, cache=Cache(cache=False)):
+                     meta_data, baseline_time, n_jobs=1, cache=Cache(cache=False)):
     """Compute a single contrast from tfr data
     Args:
         contrast: list
