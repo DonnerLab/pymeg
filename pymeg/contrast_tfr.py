@@ -43,7 +43,7 @@ class Cache(object):
     def _load_tfr_data(self, globstring):
         """Load all files identified by glob string"""
         logging.info('Loading data for:', globstring)
-        tfr_data_filenames = glob(globstring)    
+        tfr_data_filenames = glob(globstring)
         tfrs = []
         for f in tfr_data_filenames:
             tfr = pd.read_hdf(f)
@@ -55,7 +55,7 @@ class Cache(object):
         return tfr
 
 
-def baseline_per_sensor_get(tfr, baseline_time=(-0.25, -0.15)):
+def baseline_per_sensor_get(tfr, baseline_time=(-0.25, -0)):
     '''
     Get average baseline
     '''
@@ -224,6 +224,7 @@ def compute_contrast(contrast, weights, hemi, data_globstring, base_globstring,
             tfrs = [(right[i] + left[i]) / 2
                     for i in range(len(left))]
         assert(len(tfrs) == len(weights))
+        import pdb; pdb.set_trace()
         tfrs = [tfr * weight for tfr, weight in zip(tfrs, weights)]
         tfrs = functools.reduce(lambda x, y: x + y, tfrs)
         tfrs.loc[:, 'cluster'] = cluster
@@ -255,19 +256,33 @@ def augment_data(meta, response_left, stimulus):
     return meta
 
 
-def plot_contrasts(tfr_data, contrasts, areas):
+def plot_contrasts(tfr_data, contrasts=None, area_select='vfc'):
+    import pylab as plt
+
+    if contrasts is None:
+        contrasts = np.unique(tfr_data.index.get_level_values('contrast'))
+    print(contrasts)
     all_clusters, vf_clusters, glasser_clusters, jwg_clusters = atlas_glasser.get_clusters()
     areas = ['vfcPrimary', 'vfcEarly', 'vfcVO', 'vfcPHC', 'vfcV3ab',
              'vfcTO', 'vfcLO', 'vfcIPS01', 'vfcIPS23', 'vfcFEF',
              'JWG_aIPS', 'JWG_IPS_PCeS', 'JWG_M1']
     areas += glasser_clusters.keys()
-
+    areas = [area for area in areas if area_select in area]
+    cnt = 1
     for row, area in enumerate(areas):
         for col, contrast in enumerate(contrasts):
-            plt.subplot(len(areas), len(contrasts * 2))
+            plt.subplot(len(areas), len(contrasts)*2, cnt)
             data = tfr_data.query(
-                'area=="%s" & contrast=="%s" % epoch=="stimulus"')
-            plot_tfr(tfr, (-0.25, 1.35), -15, 15, 'stimulus')
+                'cluster=="%s" & contrast=="%s" & epoch=="stimulus"' %(area, contrast))
+            data = data.groupby(['freq', 'subject']).mean()
+            plot_tfr(data, (-0.25, 1.35), -50, 50, 'stimulus')
+            cnt += 1
+            plt.subplot(len(areas), len(contrasts)*2, cnt)
+            data = tfr_data.query(
+                'cluster=="%s" & contrast=="%s" & epoch=="response"' %(area, contrast))
+            data = data.groupby(['freq', 'subject']).mean()
+            plot_tfr(data, (-1, 0.5), -50, 50, 'response')
+            cnt += 1
 
 
 def set_jw_style():
@@ -308,10 +323,12 @@ def plot_tfr(tfr, time_cutoff, vmin, vmax, tl, cluster_correct=False, threshold=
 
     # data:
     X = np.stack(
-        [tfr.loc[tfr.index.isin([subj], level='subj'), time_ind].values
-         for subj in np.unique(tfr.index.get_level_values('subj'))]
+        [tfr.loc[tfr.index.isin([subj], level='subject'), time_ind].values
+         for subj in np.unique(tfr.index.get_level_values('subject'))]
     )
 
+    if ax is None:
+        ax = plt.gca()
     # grand average plot:
     cax = ax.pcolormesh(times[time_ind], freqs, X.mean(
         axis=0), vmin=vmin, vmax=vmax, cmap=cmap)
