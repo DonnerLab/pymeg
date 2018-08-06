@@ -22,7 +22,7 @@ def submit(walltime, memory, cwd, tmpdir,
     # nodes/ppn: how many nodes (usually 1)? how many cores?
 
     #PBS -q batch
-    #PBS -l walltime={walltime}:00:00
+    #PBS -l walltime={walltime}
     #PBS -l nodes={nodes}
     #PBS -l mem={memory}gb
     #PBS -N {name}
@@ -144,6 +144,8 @@ def pmap(func, args, cluster='PBS', walltime=12, memory=10, logdir=None, tmpdir=
          name=None, nodes=1, tasks=1, verbose=True, env=None, email=None,
          ssh_to='node028', home=None):
     from os.path import expanduser, join
+    if type(walltime) == type(int):
+        walltime = '%i:00:00'
     if name is None:
         name = func.__name__
     if logdir is None:

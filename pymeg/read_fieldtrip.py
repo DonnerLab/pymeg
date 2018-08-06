@@ -120,6 +120,6 @@ def _load_ft_epochs(fname, rawinfo, trialinfo_col=-1):
     events[:, 2] = trialinfo[trialinfo_col]
     events[:, 0] = sampleinfo[0]
 
-    epochs = EpochsArray(data, info, events=events, verbose=False)
+    epochs = EpochsArray(data, info, events=events, tmin = min(time)[0], verbose=False)
     epochs.info = fix_chs(rawinfo, epochs.info)
     return epochs

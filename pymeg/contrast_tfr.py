@@ -10,6 +10,8 @@ from pymeg import atlas_glasser
 
 memory = Memory(cachedir=os.environ['PYMEG_CACHE_DIR'], verbose=0)
 
+backend = 'loky'
+
 
 class Cache(object):
     """A cache that can prevent reloading from disk.
@@ -32,7 +34,7 @@ class Cache(object):
             if globstring not in self.store:
                 self.store[globstring] = self._load_tfr_data(globstring)
             else:
-                logging.info('Returning cached object:', globstring)
+                logging.info('Returning cached object: %s' % globstring)
             return self.store[globstring]
         else:
             return self._load_tfr_data(globstring)
@@ -42,7 +44,7 @@ class Cache(object):
 
     def _load_tfr_data(self, globstring):
         """Load all files identified by glob string"""
-        logging.info('Loading data for:', globstring)
+        logging.info('Loading data for: %s' % globstring)
         tfr_data_filenames = glob(globstring)
         tfrs = []
         for f in tfr_data_filenames:
@@ -83,7 +85,7 @@ def baseline_per_sensor_apply(tfr, baseline):
 
 @memory.cache(ignore=['cache'])
 def load_tfr_contrast(data_globstring, base_globstring, meta_data, conditions,
-                      baseline_time, n_jobs=4, cache=Cache(cache=False)):
+                      baseline_time, n_jobs=1, cache=Cache(cache=False)):
     """Load a set of data files and turn them into contrasts.
     """
     tfrs = []
@@ -100,16 +102,13 @@ def load_tfr_contrast(data_globstring, base_globstring, meta_data, conditions,
     else:
         tfr_data_to_baseline = tfr_data
 
-    areas = np.unique(tfr_data.index.get_level_values('area'))
-
-    # compute contrasts:
-    from itertools import product
+    # compute contrasts
     tasks = []
-    for area, condition in product(areas, conditions):
+    for condition in conditions:
         tasks.append((tfr_data, tfr_data_to_baseline, meta_data,
-                      area, condition, baseline_time))
+                      condition, baseline_time))
 
-    tfr_conditions = Parallel(n_jobs=n_jobs, verbose=1, backend='threading')(
+    tfr_conditions = Parallel(n_jobs=n_jobs, verbose=1, backend=backend)(
         delayed(make_tfr_contrasts)(*task) for task in tasks)
 
     tfrs.append(pd.concat(tfr_conditions))
@@ -117,7 +116,7 @@ def load_tfr_contrast(data_globstring, base_globstring, meta_data, conditions,
     return tfrs
 
 
-def make_tfr_contrasts(tfr_data, tfr_data_to_baseline, meta_data, area,
+def make_tfr_contrasts(tfr_data, tfr_data_to_baseline, meta_data,
                        condition, baseline_time):
 
     # unpack:
@@ -126,8 +125,7 @@ def make_tfr_contrasts(tfr_data, tfr_data_to_baseline, meta_data, area,
     # apply condition ind, collapse across trials, and get baseline::
     tfr_data_to_baseline = (tfr_data_to_baseline
                             .loc[
-                                tfr_data_to_baseline.index.isin(condition_ind, level='trial') &
-                                tfr_data_to_baseline.index.isin([area], level='area'), :]
+                                tfr_data_to_baseline.index.isin(condition_ind, level='trial'), :]
                             .groupby(['freq', 'area']).mean())
 
     baseline = baseline_per_sensor_get(
@@ -136,26 +134,23 @@ def make_tfr_contrasts(tfr_data, tfr_data_to_baseline, meta_data, area,
     # apply condition ind, and collapse across trials:
     tfr_data_condition = (tfr_data
                           .loc[
-                              tfr_data.index.isin(condition_ind, level='trial') &
-                              tfr_data.index.isin([area], level='area'), :]
+                              tfr_data.index.isin(condition_ind, level='trial'), :]
                           .groupby(['freq', 'area']).mean())
 
     # apply baseline, and collapse across sensors:
     tfr_data_condition = baseline_per_sensor_apply(
-        tfr_data_condition, baseline=baseline).groupby(['freq', ]).mean()
+        tfr_data_condition, baseline=baseline).groupby(['freq', 'area']).mean()
 
-    tfr_data_condition['area'] = area
     tfr_data_condition['condition'] = condition
     tfr_data_condition = tfr_data_condition.set_index(
-        ['area', 'condition', ], append=True, inplace=False)
+        ['condition', ], append=True, inplace=False)
     tfr_data_condition = tfr_data_condition.reorder_levels(
         ['area', 'condition', 'freq'])
     return tfr_data_condition
 
 
-#@memory.cache(ignore=['cache'])
-def compute_contrast(contrast, weights, hemi, data_globstring, base_globstring,
-                     meta_data, baseline_time, n_jobs=15, cache=Cache(cache=False)):
+def compute_contrast(contrasts, hemis, data_globstring, base_globstring,
+                      meta_data, baseline_time, n_jobs=1, cache=Cache(cache=False)):
     """Compute a single contrast from tfr data
     Args:
         contrast: list
@@ -182,22 +177,28 @@ def compute_contrast(contrast, weights, hemi, data_globstring, base_globstring,
     all_clusters, visual_field_clusters, glasser_clusters, jwg_clusters = atlas_glasser.get_clusters()
     # load for all subjects:
     tfr_condition = []
+    from functools import reduce
+    from itertools import product
 
+    conditions = set(
+        reduce(lambda x, y: x + y, [x[0] for x in contrasts.values()]))
+    print(conditions)
     tfr_condition.append(
         load_tfr_contrast(data_globstring, base_globstring, meta_data,
-                          contrast, baseline_time, n_jobs=n_jobs, cache=cache))
+                          list(conditions), baseline_time, n_jobs=n_jobs, cache=cache))
     tfr_condition = pd.concat(tfr_condition)
 
     # mean across sessions:
     tfr_condition = tfr_condition.groupby(
         ['area', 'condition', 'freq']).mean()
     cluster_contrasts = []
-    import functools
-    logging.info('Start computing contrast %s for clusters' % contrast)
-    for cluster in all_clusters.keys():
+    for cur_contrast, hemi, cluster in product(contrasts.items(), hemis, all_clusters.keys()):
+        contrast, (conditions, weights) = cur_contrast
+        logging.info('Start computing contrast %s for cluster %s' %
+                     (contrast, cluster))
         right = []
         left = []
-        for condition in contrast:
+        for condition in conditions:
             tfrs_rh = []
             tfrs_lh = []
             for area in all_clusters[cluster]:
@@ -224,10 +225,12 @@ def compute_contrast(contrast, weights, hemi, data_globstring, base_globstring,
             tfrs = [(right[i] + left[i]) / 2
                     for i in range(len(left))]
         assert(len(tfrs) == len(weights))
-        import pdb; pdb.set_trace()
         tfrs = [tfr * weight for tfr, weight in zip(tfrs, weights)]
-        tfrs = functools.reduce(lambda x, y: x + y, tfrs)
+        tfrs = reduce(lambda x, y: x + y, tfrs)
+        tfrs = tfrs.groupby('freq').mean()
         tfrs.loc[:, 'cluster'] = cluster
+        tfrs.loc[:, 'contrast'] = contrast
+        tfrs.loc[:, 'hemi'] = hemi
         cluster_contrasts.append(tfrs)
     logging.info('Done compute contrast')
     return pd.concat(cluster_contrasts)
