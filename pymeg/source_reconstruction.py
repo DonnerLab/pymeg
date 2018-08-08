@@ -239,11 +239,12 @@ def get_head_correct_info(raw_filename, epoch_filename, N=-1):
 
 
 
-def get_trans_epoch(raw_filename, epoch_filename, save_path=os.environ['PYMEG_CACHE_DIR']):
+def get_trans_epoch(raw_filename, epoch_filename):
     from os.path import join
+    save_path=os.environ['PYMEG_CACHE_DIR']
     save_file = join(save_path, 
         epoch_filename.split("/")[-1].replace(".fif","").replace(".gz", "") + "-trans.fif")
-    if os.path.isfile(save_path):
+    if os.path.isfile(save_file):
         return save_file
     trans, fiducials, info = get_head_correct_info(
         raw_filename, epoch_filename)
