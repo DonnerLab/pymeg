@@ -238,6 +238,21 @@ def get_head_correct_info(raw_filename, epoch_filename, N=-1):
     return trans, fiducials, info
 
 
+
+def get_trans_epoch(raw_filename, epoch_filename):
+    from os.path import join
+    save_path=os.environ['PYMEG_CACHE_DIR']
+    save_file = join(save_path, 
+        epoch_filename.split("/")[-1].replace(".fif","").replace(".gz", "") + "-trans.fif")
+    if os.path.isfile(save_file):
+        return save_file
+    trans, fiducials, info = get_head_correct_info(
+        raw_filename, epoch_filename)
+
+    mne.io.meas_info.write_info(save_file, info)
+    return save_file
+
+
 def make_trans(subject, raw_filename, epoch_filename, trans_name):
     """Create coregistration between MRI and MEG space.
 
@@ -245,33 +260,19 @@ def make_trans(subject, raw_filename, epoch_filename, trans_name):
     """
     import os
     import time
-    import tempfile
-    trans, fiducials, info = get_head_correct_info(
-        raw_filename, epoch_filename)
-
-    with tempfile.NamedTemporaryFile(suffix='.fif') as hs_ref:
-        # hs_ref = '/home/nwilming/conf_meg/trans/S%i-SESS%i.fif' % (
-        #    subject, session)
-        mne.io.meas_info.write_info(hs_ref.name, info)
-
-        if os.path.isfile(trans_name):
-            raise RuntimeError(
-                'Transformation matrix %s already exists' % trans_name)
-
-
-
-        cmd = 'mne coreg --high-res-head -d %s -s %s -f %s' % (
-            subjects_dir, subject, hs_ref.name)
-        print(cmd)
-        os.system(cmd)
-        mne.gui.coregistration(subject, inst=hs_ref.name,
-                               subjects_dir=subjects_dir)
-        print('--------------------------------')
-        print('Please save trans file as:')
-        print(trans_name)
-        while not os.path.isfile(trans_name):
-            #print('Waiting for transformation matrix to appear')
-            time.sleep(5)
+    fid_epochs = get_trans_epoch(raw_filename, epoch_filename)
+    cmd = 'mne coreg --high-res-head -d %s -s %s -f %s' % (
+        subjects_dir, subject, fid_epochs)
+    print(cmd)
+    os.system(cmd)
+    mne.gui.coregistration(subject, inst=hs_ref.name,
+                           subjects_dir=subjects_dir)
+    print('--------------------------------')
+    print('Please save trans file as:')
+    print(trans_name)
+    while not os.path.isfile(trans_name):
+        #print('Waiting for transformation matrix to appear')
+        time.sleep(5)
 
 
 

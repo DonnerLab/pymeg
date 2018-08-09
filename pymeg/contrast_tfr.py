@@ -46,14 +46,19 @@ class Cache(object):
         """Load all files identified by glob string"""
         logging.info('Loading data for: %s' % globstring)
         tfr_data_filenames = glob(globstring)
+        logging.info('This is these filenames: %s' % str(tfr_data_filenames))
         tfrs = []
         for f in tfr_data_filenames:
+            logging.info('Now working on: %s' % str(f))
             tfr = pd.read_hdf(f)
+            logging.info('Done loading, now pivoting.')
             tfr = pd.pivot_table(tfr.reset_index(), values=tfr.columns, index=[
                                  'trial', 'est_val'], columns='time').stack(-2)
             tfr.index.names = ['trial', 'freq', 'area']
             tfrs.append(tfr)
+        logging.info('Concate now.')
         tfr = pd.concat(tfrs)
+        logging.info('Done _load_tfr_data.')
         return tfr
 
 
@@ -157,6 +162,7 @@ def make_tfr_contrasts(tfr_data, tfr_data_to_baseline, meta_data,
     return tfr_data_condition, {'condition': num_trials_in_condition}
 
 
+@memory.cache(ignore=['cache'])
 def compute_contrast(contrasts, hemis, data_globstring, base_globstring,
                      meta_data, baseline_time, n_jobs=1, cache=Cache(cache=False)):
     """Compute a single contrast from tfr data
