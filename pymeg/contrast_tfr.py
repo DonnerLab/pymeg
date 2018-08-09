@@ -62,7 +62,7 @@ def baseline_per_sensor_get(tfr, baseline_time=(-0.25, -0)):
     Get average baseline
     '''
     time = tfr.columns.get_level_values('time').values.astype(float)
-    id_base = (time > baseline_time[0]) & (time < baseline_time[1])
+    id_base = (time >= baseline_time[0]) & (time <= baseline_time[1])
     base = tfr.loc[:, id_base].groupby(['freq', 'area']).mean().mean(
         axis=1)  # This should be len(nr_freqs * nr_hannels)
     return base
@@ -85,7 +85,8 @@ def baseline_per_sensor_apply(tfr, baseline):
 
 @memory.cache(ignore=['cache'])
 def load_tfr_contrast(data_globstring, base_globstring, meta_data, conditions,
-                      baseline_time, n_jobs=1, cache=Cache(cache=False)):
+                      baseline_time, n_jobs=1, baseline_per_condition=True,
+                      cache=Cache(cache=False)):
     """Load a set of data files and turn them into contrasts.
     """
     tfrs = []
@@ -102,31 +103,36 @@ def load_tfr_contrast(data_globstring, base_globstring, meta_data, conditions,
     else:
         tfr_data_to_baseline = tfr_data
 
+    if baseline_per_condition:
+        # apply condition ind, collapse across trials, and get baseline::
+        tfr_data_to_baseline = tfr_data_to_baseline.groupby(
+            ['freq', 'area']).mean()
     # compute contrasts
     tasks = []
     for condition in conditions:
         tasks.append((tfr_data, tfr_data_to_baseline, meta_data,
-                      condition, baseline_time))
+                      condition, baseline_time, baseline_per_condition))
 
     tfr_conditions = Parallel(n_jobs=n_jobs, verbose=1, backend=backend)(
         delayed(make_tfr_contrasts)(*task) for task in tasks)
-
-    tfrs.append(pd.concat(tfr_conditions))
+    weights = {(k, v) for k, v in [t[1] for t in tfr_conditions]}
+    tfrs.append(pd.concat([t[0] for t in tfr_conditions]))
     tfrs = pd.concat(tfrs)
-    return tfrs
+    return tfrs, weights
 
 
 def make_tfr_contrasts(tfr_data, tfr_data_to_baseline, meta_data,
-                       condition, baseline_time):
+                       condition, baseline_time, baseline_per_condition=True):
 
     # unpack:
     condition_ind = meta_data.loc[meta_data[condition] == 1, "hash"]
 
-    # apply condition ind, collapse across trials, and get baseline::
-    tfr_data_to_baseline = (tfr_data_to_baseline
-                            .loc[
-                                tfr_data_to_baseline.index.isin(condition_ind, level='trial'), :]
-                            .groupby(['freq', 'area']).mean())
+    if baseline_per_condition:
+        # apply condition ind, collapse across trials, and get baseline::
+        tfr_data_to_baseline = (tfr_data_to_baseline
+                                .loc[
+                                    tfr_data_to_baseline.index.isin(condition_ind, level='trial'), :]
+                                .groupby(['freq', 'area']).mean())
 
     baseline = baseline_per_sensor_get(
         tfr_data_to_baseline, baseline_time=baseline_time)
@@ -134,8 +140,10 @@ def make_tfr_contrasts(tfr_data, tfr_data_to_baseline, meta_data,
     # apply condition ind, and collapse across trials:
     tfr_data_condition = (tfr_data
                           .loc[
-                              tfr_data.index.isin(condition_ind, level='trial'), :]
-                          .groupby(['freq', 'area']).mean())
+                              tfr_data.index.isin(condition_ind, level='trial'), :])
+    num_trials_in_condition = len(np.unique(
+        tfr_data_condition.index.get_level_values('hash')))
+    tfr_data_condition = tfr_data_condition.groupby(['freq', 'area']).mean()
 
     # apply baseline, and collapse across sensors:
     tfr_data_condition = baseline_per_sensor_apply(
@@ -146,11 +154,11 @@ def make_tfr_contrasts(tfr_data, tfr_data_to_baseline, meta_data,
         ['condition', ], append=True, inplace=False)
     tfr_data_condition = tfr_data_condition.reorder_levels(
         ['area', 'condition', 'freq'])
-    return tfr_data_condition
+    return tfr_data_condition, {'condition': num_trials_in_condition}
 
 
 def compute_contrast(contrasts, hemis, data_globstring, base_globstring,
-                      meta_data, baseline_time, n_jobs=1, cache=Cache(cache=False)):
+                     meta_data, baseline_time, n_jobs=1, cache=Cache(cache=False)):
     """Compute a single contrast from tfr data
     Args:
         contrast: list
@@ -164,17 +172,17 @@ def compute_contrast(contrasts, hemis, data_globstring, base_globstring,
                 'lh_is_ipsi' if contrast is lateralized and lh is ipsi
                 'rh_is_ipsi' if contrast is lateralized and rh is ipsi
                 'avg' if contrast should be averaged across hemispheres
-        data_globstring: string
+        data_globstring: string or list
             A string that selects a set of filenames if passed through
             glob.
-        base_globstring: string
+        base_globstring: string or list
             Same as data_globstring but selects data to use for baselining
         meta_data: data frame
             Meta data DataFrame with as many rows as trials.
         baseline_time: tuple
 
     """
-    all_clusters, visual_field_clusters, glasser_clusters, jwg_clusters = atlas_glasser.get_clusters()
+    all_clusters, _, _, _ = atlas_glasser.get_clusters()
     # load for all subjects:
     tfr_condition = []
     from functools import reduce
@@ -259,48 +267,20 @@ def augment_data(meta, response_left, stimulus):
     return meta
 
 
-def plot_contrasts(tfr_data, contrasts=None, area_select='vfc'):
-    import pylab as plt
-
-    if contrasts is None:
-        contrasts = np.unique(tfr_data.index.get_level_values('contrast'))
-    print(contrasts)
-    all_clusters, vf_clusters, glasser_clusters, jwg_clusters = atlas_glasser.get_clusters()
-    areas = ['vfcPrimary', 'vfcEarly', 'vfcVO', 'vfcPHC', 'vfcV3ab',
-             'vfcTO', 'vfcLO', 'vfcIPS01', 'vfcIPS23', 'vfcFEF',
-             'JWG_aIPS', 'JWG_IPS_PCeS', 'JWG_M1']
-    areas += glasser_clusters.keys()
-    areas = [area for area in areas if area_select in area]
-    cnt = 1
-    for row, area in enumerate(areas):
-        for col, contrast in enumerate(contrasts):
-            plt.subplot(len(areas), len(contrasts)*2, cnt)
-            data = tfr_data.query(
-                'cluster=="%s" & contrast=="%s" & epoch=="stimulus"' %(area, contrast))
-            data = data.groupby(['freq', 'subject']).mean()
-            plot_tfr(data, (-0.25, 1.35), -50, 50, 'stimulus')
-            cnt += 1
-            plt.subplot(len(areas), len(contrasts)*2, cnt)
-            data = tfr_data.query(
-                'cluster=="%s" & contrast=="%s" & epoch=="response"' %(area, contrast))
-            data = data.groupby(['freq', 'subject']).mean()
-            plot_tfr(data, (-1, 0.5), -50, 50, 'response')
-            cnt += 1
-
-
 def set_jw_style():
     import matplotlib
     import seaborn as sns
     matplotlib.rcParams['pdf.fonttype'] = 42
     matplotlib.rcParams['ps.fonttype'] = 42
     sns.set(style='ticks', font='Arial', font_scale=1, rc={
-        'axes.linewidth': 0.25,
+        'axes.linewidth': 0.05,
         'axes.labelsize': 7,
         'axes.titlesize': 7,
         'xtick.labelsize': 6,
         'ytick.labelsize': 6,
         'legend.fontsize': 6,
         'xtick.major.width': 0.25,
+        'xtick.minor.width': 0.25,
         'ytick.major.width': 0.25,
         'text.color': 'Black',
         'axes.labelcolor': 'Black',
@@ -309,14 +289,81 @@ def set_jw_style():
     sns.plotting_context()
 
 
-def plot_tfr(tfr, time_cutoff, vmin, vmax, tl, cluster_correct=False, threshold=0.05, ax=None):
-    from mne.stats import permutation_cluster_1samp_test as permutation_test
+def plot_mosaic(tfr_data, vmin=-25, vmax=25, cmap='RdBu_r',
+                ncols=4, epoch='stimulus'):
+    if epoch == "stimulus":
+        time_cutoff = (-0.5, 1.35)
+        xticks = [0, 0.25, 0.5, 0.75, 1]
+        xticklabels = ['0\nStim on', '', '.5', '', '1\nStim off']
+        yticks = [25, 50, 75, 100, 125]
+        yticklabels = ['25', '', '75', '', '125']
+        xmarker = [0, 1]
+        baseline = (-0.25, 0)
+    else:
+        time_cutoff = (-1, .5)
+        xticks = [-1, -0.75, -0.5, -0.25, 0, 0.25, 0.5]
+        xticklabels = ['-1', '', '-0.5', '', '0\nResponse', '', '0.5']
+        yticks = [25, 50, 75, 100, 125]
+        yticklabels = ['25', '', '75', '', '125']
+        xmarker = [0, 1]
+        baseline = None
+    from matplotlib import gridspec
     import pylab as plt
-    # colorbar:
-    from matplotlib.colors import LinearSegmentedColormap
-    cmap = LinearSegmentedColormap.from_list(
-        'custom', ['blue', 'lightblue', 'lightgrey', 'yellow', 'red'], N=100)
+    import seaborn as sns
+    set_jw_style()
+    sns.set_style('ticks')
+    nrows = (len(atlas_glasser.areas) // ncols) + 1
+    gs = gridspec.GridSpec(nrows, ncols)
+    gs.update(wspace=0.01, hspace=0.01)
 
+    for i, (name, area) in enumerate(atlas_glasser.areas.items()):
+        column = np.mod(i, ncols)
+        row = i // ncols
+        plt.subplot(gs[row, column])
+        times, freqs, tfr = get_tfr(tfr_data.query('cluster=="%s"' %
+                                                   area), time_cutoff)
+        cax = plt.gca().pcolormesh(times, freqs, np.nanmean(
+            tfr, 0), vmin=vmin, vmax=vmax, cmap=cmap, zorder=-2)
+        # plt.grid(True, alpha=0.5)
+        for xmark in xmarker:
+            plt.axvline(xmark, color='k', lw=1, zorder=-1, alpha=0.5)
+
+        plt.yticks(yticks, [''] * len(yticks))
+        plt.xticks(xticks, [''] * len(xticks))
+        set_title(name, times, freqs, plt.gca())
+        plt.tick_params(direction='in', length=3)
+        plt.xlim(time_cutoff)
+        plt.ylim([10, 147.5])
+    plt.subplot(gs[nrows - 2, 0])
+
+    sns.despine(left=True, bottom=True)
+    plt.subplot(gs[nrows - 1, 0])
+    cax = plt.gca().pcolormesh(times, freqs, np.nanmean(
+        tfr, 0) * 0, vmin=vmin, vmax=vmax, cmap=cmap, zorder=-2)
+    plt.xticks(xticks, xticklabels)
+    plt.yticks(yticks, yticklabels)
+    for xmark in xmarker:
+        plt.axvline(xmark, color='k', lw=1, zorder=-1, alpha=0.5)
+    if baseline is not None:
+        plt.fill_between(baseline, y1=[10, 10],
+                         y2=[150, 150], color='k', alpha=0.5)
+    plt.tick_params(direction='in', length=3)
+    plt.xlim(time_cutoff)
+    plt.ylim([10, 147.5])
+    plt.xlabel('time [s]')
+    plt.ylabel('Freq [Hz]')
+    sns.despine(ax=plt.gca())
+
+
+def set_title(text, times, freqs, axes):
+    import pylab as plt
+    x = np.mean(times)
+    y = np.max(freqs)
+    plt.text(x, y, text, fontsize=8,
+             verticalalignment='top', horizontalalignment='center')
+
+
+def get_tfr(tfr, time_cutoff):
     # variables:
     times = np.array(tfr.columns, dtype=float)
     freqs = np.array(
@@ -324,49 +371,59 @@ def plot_tfr(tfr, time_cutoff, vmin, vmax, tl, cluster_correct=False, threshold=
     time_ind = (times > time_cutoff[0]) & (times < time_cutoff[1])
     time_ind = (times > time_cutoff[0]) & (times < time_cutoff[1])
 
+    tfrs = [tfr.loc[tfr.index.isin([subj], level='subject'), time_ind].values
+            for subj in np.unique(tfr.index.get_level_values('subject'))]
     # data:
-    X = np.stack(
-        [tfr.loc[tfr.index.isin([subj], level='subject'), time_ind].values
-         for subj in np.unique(tfr.index.get_level_values('subject'))]
-    )
+    X = np.stack(tfrs)
+    return times[time_ind], freqs, X
 
-    if ax is None:
-        ax = plt.gca()
-    # grand average plot:
-    cax = ax.pcolormesh(times[time_ind], freqs, X.mean(
-        axis=0), vmin=vmin, vmax=vmax, cmap=cmap)
 
-    # cluster stats:
-    if cluster_correct:
-        if tl == 'stimulus':
-            test_data = X[:, :, times[time_ind] > 0]
-            times_test_data = times[time_ind][times[time_ind] > 0]
-        else:
-            test_data = X.copy()
-            times_test_data = times[time_ind]
-        try:
-            T_obs, clusters, cluster_p_values, h0 = permutation_test(
-                test_data, threshold={'start': 0, 'step': 0.2},
-                connectivity=None, tail=0, n_permutations=1000, n_jobs=10)
-            sig = cluster_p_values.reshape(
-                (test_data.shape[1], test_data.shape[2]))
-            ax.contour(times_test_data, freqs, sig, (threshold,),
-                       linewidths=0.5, colors=('black'))
-        except:
-            pass
+def plot_cluster(names, view):
+    from pymeg import atlas_glasser
+    all_clusters, _, _, _ = atlas_glasser.get_clusters()
+    label_names = []
+    for name in names:
+        cluster_name = atlas_glasser.areas[name]
+        label_names.extend(all_clusters[cluster_name])
 
-    ax.axvline(0, ls='--', lw=0.75, color='black',)
+    plot_roi('lh', label_names, 'r')
 
-    if tl == 'stimulus':
-        ax.set_xlabel('Time from stimulus (s)')
-        ax.axvline(-0.25, ls=':', lw=0.75, color='black',)
-        ax.axvline(-0.15, ls=':', lw=0.75, color='black',)
-        ax.set_ylabel('Frequency (Hz)')
-        # ax.set_title('{} contrast'.format(c))
-    else:
-        ax.set_xlabel('Time from report (s)')
-        # ax.set_title('N = {}'.format(len(subjects)))
-        ax.tick_params(labelleft='off')
-        plt.colorbar(cax, ticks=[vmin, 0, vmax])
 
-    return ax
+#@memory.cache
+def plot_roi(hemi, labels, color, annotation='HCPMMP1',
+             view='parietal',
+             fs_dir=os.environ['SUBJECTS_DIR'],
+             subject_id='S04', surf='inflated'):
+    import matplotlib
+    import os
+    import glob
+    from surfer import Brain
+    from mne import Label
+    color = np.array(matplotlib.colors.to_rgba(color))
+
+    brain = Brain(subject_id, hemi, surf, offscreen=False)
+    labels = [label.replace('-rh', '').replace('-lh', '') for label in labels]
+    # First select all label files
+
+    label_names = glob.glob(os.path.join(
+        fs_dir, subject_id, 'label', 'lh*.label'))
+    label_names = [label for label in label_names if any(
+        [l in label for l in labels])]
+
+    for label in label_names:
+        brain.add_label(label, color=color)
+
+    # Now go for annotations
+    from nibabel.freesurfer import io
+    ids, colors, annot_names = io.read_annot(os.path.join(
+        fs_dir, subject_id, 'label', 'lh.%s.annot' % annotation),
+        orig_ids=True)
+
+    for i, alabel in enumerate(annot_names):
+        if any([label in alabel.decode('utf-8') for label in labels]):
+            label_id = colors[i, -1]
+            vertices = np.where(ids == label_id)[0]
+            l = Label(np.sort(vertices), hemi='lh')
+            brain.add_label(l, color=color)
+    brain.show_view(view)
+    return brain.screenshot()

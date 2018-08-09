@@ -230,9 +230,9 @@ def get_clusters():
         ),
         'HCPMMP1_pos_opercular': (
             ['L_{}_ROI-lh'.format(area) for area in [
-            '43', 'FOP1', 'OP4', 'OP1', 'OP2-3', 'PFcm']] +
+                '43', 'FOP1', 'OP4', 'OP1', 'OP2-3', 'PFcm']] +
             ['R_{}_ROI-rh'.format(area) for area in [
-            '43', 'FOP1', 'OP4', 'OP1', 'OP2-3', 'PFcm']]
+                '43', 'FOP1', 'OP4', 'OP1', 'OP2-3', 'PFcm']]
         ),
         'HCPMMP1_audiotory_early': (
             ['L_{}_ROI-lh'.format(area) for area in [
@@ -318,3 +318,28 @@ def get_clusters():
                                   for k in all_clusters.keys()] for item in sublist]
 
     return all_clusters, visual_field_clusters, glasser_clusters, jwg_clusters
+
+from collections import OrderedDict
+areas = OrderedDict()
+areas['Primary occipital'] = 'vfcPrimary'
+areas['Early occipital'] = 'vfcEarly'
+areas['Ventral occipital'] = 'vfcVO'
+areas['Parahippocampal'] = 'vfcPHC'
+areas['Temporal occipital'] = 'vfcTO'
+areas['Lateral occipital'] = 'vfcTO'
+areas['Dorsal occipital'] = 'vfcV3ab'
+areas['Intraparietal 1'] = 'vfcIPS01'
+areas['Intraparietal 2'] = 'vfcIPS23'
+areas['FEF'] = 'vfcFEF'
+
+areas['Anterior intraparietal sulcus'] = 'JWG_aIPS'
+areas['Intraparietal / postcentral sulcus'] = 'JWG_IPS_PCeS'
+areas['Motor cortex (hand area)'] = 'JWG_M1'
+
+areas['Posterior cingulate'] = 'HCPMMP1_cingulate_pos'
+areas['Anterior cingulate'] = 'HCPMMP1_insular_front_opercular'
+areas['Paracentral / midcingulate'] = 'HCPMMP1_paracentral_midcingulate'
+areas['Premotor'] = 'HCPMMP1_premotor'
+areas['Dorsolateral prefrontal'] = 'HCPMMP1_dlpfc'
+areas['Ventrolateral prefrontal'] = 'HCPMMP1_frontal_inferior'
+areas['Orbital frontal polar'] = 'HCPMMP1_frontal_orbital_polar'
