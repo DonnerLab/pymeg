@@ -196,7 +196,6 @@ def pool_conditions(conditions, data_globs, base_globs, meta_data,
         tfrs[i] = tfr
         weights[i] = weight
         # Compute total trials per condition
-    print(weights)
     total_weights = {}
     for i, w in weights.items():
         for k, v in w.items():
@@ -231,20 +230,25 @@ def compute_contrast(contrasts, hemis, data_globstring, base_globstring,
                      n_jobs=1, cache=Cache(cache=False)):
     """Compute a single contrast from tfr data
     Args:
-        contrast: list
-            A list of columns in meta_data that are 1 whenever a trial is part
-            of a condition to be contrasted
-        weights: list
-            A list of weights for each condition that determines the contrast
-            to be computed
+        contrast: dict
+            Contains contrast names as keys and len==2 tuples as values. The
+            tuples contain a list of condition names first and then a set of
+            weights for each condition. Condition names identify columns in
+            the meta data that are one for each trial that belongs to
+            this condition.
         hemi: str
             Can be:
-                'lh_is_ipsi' if contrast is lateralized and lh is ipsi
-                'rh_is_ipsi' if contrast is lateralized and rh is ipsi
+                'lh_is_ipsi' if contrast is ipsi-contra hemi and left hemi is
+                    ipsi.
+                'rh_is_ipsi' if contrast is ipis-contra and right hemi is ipsi
                 'avg' if contrast should be averaged across hemispheres
-        data_globstring: string or list
-            A string that selects a set of filenames if passed through
-            glob.
+        data_globstring: list
+            Each string in data_globstring selects a set of filenames if
+            passed through glob. Condition averages and baselines are then
+            computed for each group of filenames identified by one entry
+            in data_globstring. This is useful for, e.g. computing
+            conditions per session first, then averaging them and then
+            computing contrasts across sessions.
         base_globstring: string or list
             Same as data_globstring but selects data to use for baselining
         meta_data: data frame
