@@ -120,7 +120,10 @@ def load_tfr_contrast(data_globstring, base_globstring, meta_data, conditions,
 
     tfr_conditions = Parallel(n_jobs=n_jobs, verbose=1, backend=backend)(
         delayed(make_tfr_contrasts)(*task) for task in tasks)
-    weights = {(k, v) for k, v in [t[1] for t in tfr_conditions]}
+    weight_dicts = [t[1] for t in tfr_conditions]
+    weights = weight_dicts.pop()
+    [weights.update(w) for w in weight_dicts]
+    # weights = {(k, v) for k, v in [t[1] for t in tfr_conditions]}
     tfrs.append(pd.concat([t[0] for t in tfr_conditions]))
     tfrs = pd.concat(tfrs)
     return tfrs, weights
@@ -134,20 +137,18 @@ def make_tfr_contrasts(tfr_data, tfr_data_to_baseline, meta_data,
 
     if baseline_per_condition:
         # apply condition ind, collapse across trials, and get baseline::
-        tfr_data_to_baseline = (tfr_data_to_baseline
-                                .loc[
-                                    tfr_data_to_baseline.index.isin(condition_ind, level='trial'), :]
-                                .groupby(['freq', 'area']).mean())
+        tfr_data_to_baseline = (tfr_data_to_baseline.loc[
+            tfr_data_to_baseline.index.isin(condition_ind, level='trial'), :]
+            .groupby(['freq', 'area']).mean())
 
     baseline = baseline_per_sensor_get(
         tfr_data_to_baseline, baseline_time=baseline_time)
 
     # apply condition ind, and collapse across trials:
-    tfr_data_condition = (tfr_data
-                          .loc[
-                              tfr_data.index.isin(condition_ind, level='trial'), :])
+    tfr_data_condition = (tfr_data.loc[
+        tfr_data.index.isin(condition_ind, level='trial'), :])
     num_trials_in_condition = len(np.unique(
-        tfr_data_condition.index.get_level_values('hash')))
+        tfr_data_condition.index.get_level_values('trial')))
     tfr_data_condition = tfr_data_condition.groupby(['freq', 'area']).mean()
 
     # apply baseline, and collapse across sensors:
@@ -159,12 +160,75 @@ def make_tfr_contrasts(tfr_data, tfr_data_to_baseline, meta_data,
         ['condition', ], append=True, inplace=False)
     tfr_data_condition = tfr_data_condition.reorder_levels(
         ['area', 'condition', 'freq'])
-    return tfr_data_condition, {'condition': num_trials_in_condition}
+    return tfr_data_condition, {condition: num_trials_in_condition}
+
+
+@memory.cache(ignore=['cache'])
+def single_conditions(conditions, data_glob, base_glob, meta_data,
+                      baseline_time, baseline_per_condition=False,
+                      n_jobs=1, cache=Cache(cache=False)):
+
+    tfr_condition, weights = load_tfr_contrast(
+        data_glob, base_glob, meta_data,
+        list(conditions), baseline_time, n_jobs=n_jobs,
+        baseline_per_condition=baseline_per_condition,
+        cache=cache)
+    return tfr_condition.groupby(
+        ['area', 'condition', 'freq']).mean(), weights
+
+
+def pool_conditions(conditions, data_globs, base_globs, meta_data,
+                    baseline_time, baseline_per_condition=False,
+                    n_jobs=1, cache=Cache(cache=False)):
+    weights = {}
+    tfrs = {}
+    for i, (data_glob, base_glob) in enumerate(
+            zip(ensure_iter(data_globs), ensure_iter(base_globs))):
+        # tfr, weight = single_conditions(
+        #    conditions, data_glob, base_glob, meta_data, baseline_time,
+        #    n_jobs=n_jobs,
+        #    cache=cache)
+        tfr, weight = load_tfr_contrast(
+            data_glob, base_glob, meta_data,
+            list(conditions), baseline_time, n_jobs=n_jobs,
+            baseline_per_condition=baseline_per_condition,
+            cache=cache)
+        tfrs[i] = tfr
+        weights[i] = weight
+        # Compute total trials per condition
+    print(weights)
+    total_weights = {}
+    for i, w in weights.items():
+        for k, v in w.items():
+            if k not in total_weights:
+                total_weights[k] = v
+            else:
+                total_weights[k] += v
+    # Apply weights to each tfr
+    ind_weights = {}
+    for k in total_weights.keys():
+        ind_weights[k] = []
+    for key in tfrs.keys():
+        tfr = tfrs[key]
+        for condition in total_weights.keys():
+            condition_ind = tfr.index.get_level_values(
+                'condition') == condition
+            w = weights[key][condition] / total_weights[condition]
+            tfr.loc[condition_ind, :] *= w
+            ind_weights[condition].append(w)
+        tfrs[key] = tfr
+    for condition, weights in ind_weights.items():
+        logging.info("weights for %s -> %s, sum=%f" %
+                     (condition, str(weights), sum(weights)))
+    tfrs = pd.concat(tfrs.values()).groupby(
+        ['area', 'condition', 'freq']).sum()
+    return tfrs
 
 
 @memory.cache(ignore=['cache'])
 def compute_contrast(contrasts, hemis, data_globstring, base_globstring,
-                     meta_data, baseline_time, n_jobs=1, cache=Cache(cache=False)):
+                     meta_data, baseline_time, baseline_per_condition=True,
+                     n_jobs=1, cache=Cache(cache=False)):
     """Compute a single contrast from tfr data
     Args:
         contrast: list
@@ -196,17 +260,18 @@ def compute_contrast(contrasts, hemis, data_globstring, base_globstring,
 
     conditions = set(
         reduce(lambda x, y: x + y, [x[0] for x in contrasts.values()]))
-    print(conditions)
-    tfr_condition.append(
-        load_tfr_contrast(data_globstring, base_globstring, meta_data,
-                          list(conditions), baseline_time, n_jobs=n_jobs, cache=cache))
-    tfr_condition = pd.concat(tfr_condition)
+
+    tfr_condition = pool_conditions(conditions, data_globstring,
+                                    base_globstring, meta_data,
+                                    baseline_time, n_jobs=n_jobs,
+                                    cache=cache)
 
     # mean across sessions:
     tfr_condition = tfr_condition.groupby(
         ['area', 'condition', 'freq']).mean()
     cluster_contrasts = []
-    for cur_contrast, hemi, cluster in product(contrasts.items(), hemis, all_clusters.keys()):
+    for cur_contrast, hemi, cluster in product(contrasts.items(), hemis,
+                                               all_clusters.keys()):
         contrast, (conditions, weights) = cur_contrast
         logging.info('Start computing contrast %s for cluster %s' %
                      (contrast, cluster))
@@ -433,3 +498,14 @@ def plot_roi(hemi, labels, color, annotation='HCPMMP1',
             brain.add_label(l, color=color)
     brain.show_view(view)
     return brain.screenshot()
+
+
+def ensure_iter(input):
+    if isinstance(input, str):
+        yield input
+    else:
+        try:
+            for item in input:
+                yield item
+        except TypeError:
+            yield input
