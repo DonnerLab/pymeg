@@ -449,7 +449,7 @@ def plot_mosaic(tfr_data, vmin=-25, vmax=25, cmap='RdBu_r',
     sns.despine(ax=plt.gca())
 
 
-def plot_tfr(df, vmin=-5, vmax=5, cmap='RdBu_r'):
+def plot_tfr(df, vmin=-5, vmax=5, cmap='RdBu_r', threshold=0.05):
     import pylab as plt
     from mne.viz.utils import _plot_masked_image as pmi
     times, freqs, tfr = get_tfr(df, (-np.inf, np.inf))
@@ -458,7 +458,7 @@ def plot_tfr(df, vmin=-5, vmax=5, cmap='RdBu_r'):
     sig = cluster_p_values.reshape((tfr.shape[1], tfr.shape[2]))
 
     cax = pmi(plt.gca(), tfr.mean(0), times, yvals=freqs,
-              yscale='linear', vmin=vmin, vmax=vmax, mask=sig < 0.05,
+              yscale='linear', vmin=vmin, vmax=vmax, mask=sig < threshold,
               mask_alpha=1, mask_cmap=cmap, cmap=cmap)
 
     return cax, times, freqs, tfr
