@@ -366,7 +366,9 @@ def set_jw_style():
 
 
 def plot_mosaic(tfr_data, vmin=-25, vmax=25, cmap='RdBu_r',
-                ncols=4, epoch='stimulus'):
+                ncols=4, epoch='stimulus', stats=False,
+                threshold=0.05):
+    from mne.viz.utils import _plot_masked_image as pmi
     if epoch == "stimulus":
         time_cutoff = (-0.5, 1.35)
         xticks = [0, 0.25, 0.5, 0.75, 1]
@@ -393,29 +395,46 @@ def plot_mosaic(tfr_data, vmin=-25, vmax=25, cmap='RdBu_r',
     gs.update(wspace=0.01, hspace=0.01)
 
     for i, (name, area) in enumerate(atlas_glasser.areas.items()):
-        column = np.mod(i, ncols)
-        row = i // ncols
-        plt.subplot(gs[row, column])
-        times, freqs, tfr = get_tfr(tfr_data.query('cluster=="%s"' %
-                                                   area), time_cutoff)
-        cax = plt.gca().pcolormesh(times, freqs, np.nanmean(
-            tfr, 0), vmin=vmin, vmax=vmax, cmap=cmap, zorder=-2)
-        # plt.grid(True, alpha=0.5)
-        for xmark in xmarker:
-            plt.axvline(xmark, color='k', lw=1, zorder=-1, alpha=0.5)
+        try:
+            column = np.mod(i, ncols)
+            row = i // ncols
+            plt.subplot(gs[row, column])
+            times, freqs, tfr = get_tfr(tfr_data.query('cluster=="%s"' %
+                                                       area), time_cutoff)
+            # cax = plt.gca().pcolormesh(times, freqs, np.nanmean(
+            #    tfr, 0), vmin=vmin, vmax=vmax, cmap=cmap, zorder=-2)
+            mask = None
+            if stats:
+                _, _, cluster_p_values, _ = get_tfr_stats(
+                    times, freqs, tfr, threshold)
+                sig = cluster_p_values.reshape((tfr.shape[1], tfr.shape[2]))
+                mask = sig < threshold
+            cax = pmi(plt.gca(),  np.nanmean(tfr, 0), times, yvals=freqs,
+                      yscale='linear', vmin=vmin, vmax=vmax,
+                      mask=mask, mask_alpha=1,
+                      mask_cmap=cmap, cmap=cmap)
 
-        plt.yticks(yticks, [''] * len(yticks))
-        plt.xticks(xticks, [''] * len(xticks))
-        set_title(name, times, freqs, plt.gca())
-        plt.tick_params(direction='in', length=3)
-        plt.xlim(time_cutoff)
-        plt.ylim([10, 147.5])
+            # plt.grid(True, alpha=0.5)
+            for xmark in xmarker:
+                plt.axvline(xmark, color='k', lw=1, zorder=-1, alpha=0.5)
+
+            plt.yticks(yticks, [''] * len(yticks))
+            plt.xticks(xticks, [''] * len(xticks))
+            set_title(name, times, freqs, plt.gca())
+            plt.tick_params(direction='in', length=3)
+            plt.xlim(time_cutoff)
+            plt.ylim([10, 147.5])
+        except ValueError as e:
+            print(name, area, e)
     plt.subplot(gs[nrows - 2, 0])
 
     sns.despine(left=True, bottom=True)
     plt.subplot(gs[nrows - 1, 0])
-    cax = plt.gca().pcolormesh(times, freqs, np.nanmean(
-        tfr, 0) * 0, vmin=vmin, vmax=vmax, cmap=cmap, zorder=-2)
+
+    pmi(plt.gca(),  np.nanmean(tfr, 0) * 0, times, yvals=freqs,
+        yscale='linear', vmin=vmin, vmax=vmax,
+        mask=None, mask_alpha=1,
+        mask_cmap=cmap, cmap=cmap)
     plt.xticks(xticks, xticklabels)
     plt.yticks(yticks, yticklabels)
     for xmark in xmarker:
@@ -429,6 +448,62 @@ def plot_mosaic(tfr_data, vmin=-25, vmax=25, cmap='RdBu_r',
     plt.xlabel('time [s]')
     plt.ylabel('Freq [Hz]')
     sns.despine(ax=plt.gca())
+
+
+def plot_tfr(df, vmin=-5, vmax=5, cmap='RdBu_r', threshold=0.05):
+    import pylab as plt
+    from mne.viz.utils import _plot_masked_image as pmi
+    times, freqs, tfr = get_tfr(df, (-np.inf, np.inf))
+    T_obs, clusters, cluster_p_values, h0 = get_tfr_stats(
+        times, freqs, tfr, 0.05)
+    sig = cluster_p_values.reshape((tfr.shape[1], tfr.shape[2]))
+
+    cax = pmi(plt.gca(), tfr.mean(0), times, yvals=freqs,
+              yscale='linear', vmin=vmin, vmax=vmax, mask=sig < threshold,
+              mask_alpha=1, mask_cmap=cmap, cmap=cmap)
+
+    return cax, times, freqs, tfr
+
+
+@memory.cache()
+def get_tfr_stats(times, freqs, tfr, threshold=0.05):
+    from mne.stats import permutation_cluster_1samp_test as cluster_test
+    return cluster_test(
+        tfr, threshold={'start': 0, 'step': 0.2},
+        connectivity=None, tail=0, n_permutations=1000, n_jobs=2)
+
+
+def plot_tfr_stats(times, freqs, tfr, threshold=0.05):
+    import pylab as plt
+    from matplotlib.colors import LinearSegmentedColormap
+    T_obs, clusters, cluster_p_values, h0 = get_tfr_stats(
+        times, freqs, tfr, threshold)
+    vmax = 1
+    cmap = LinearSegmentedColormap.from_list('Pvals', [(0 / vmax, (1, 1, 1, 0)),
+                                                       (0.04999 / vmax,
+                                                        (1, 1, 1, 0)),
+                                                       (0.05 / vmax,
+                                                        (1, 1, 1, 0.5)),
+                                                       (1 / vmax, (1, 1, 1, 0.5))]
+                                             )
+    sig = cluster_p_values.reshape((tfr.shape[1], tfr.shape[2]))
+
+    #df = np.array(list(np.diff(freqs) / 2) + [freqs[-1] - freqs[-2]])
+    #dt = np.array(list(np.diff(times) / 2) + [times[-1] - times[-2]])
+    #from scipy.interpolate import interp2d
+    #print(np.unique((sig < threshold).astype(float)))
+    #i = interp2d(times, freqs, sig.astype(float))
+    # X, Y = (np.linspace(times[0], times[-1], len(times) * 25),
+    #        np.linspace(freqs[0], freqs[-1], len(freqs) * 25))
+    #Z = i(X.ravel(), Y.ravel())
+
+    #plt.gca().pcolormesh(times, freqs, sig, vmin=0, vmax=1, cmap=cmap)
+
+    plt.gca().contour(
+        times, freqs,
+        sig, (threshold),
+        linewidths=0.5, colors=('black'))
+    return X, Y, Z
 
 
 def set_title(text, times, freqs, axes):
