@@ -177,6 +177,7 @@ def single_conditions(conditions, data_glob, base_glob, meta_data,
         ['area', 'condition', 'freq']).mean(), weights
 
 
+@memory.cache(ignore=['cache'])
 def pool_conditions(conditions, data_globs, base_globs, meta_data,
                     baseline_time, baseline_per_condition=False,
                     n_jobs=1, cache=Cache(cache=False)):
