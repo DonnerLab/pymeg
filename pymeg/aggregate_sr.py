@@ -48,11 +48,12 @@ in their attributes.
 
 """
 import pandas as pd
+import numpy as np
 
 
 def aggregate_files(data_globstring, base_globstring, baseline_time,
                     hemis=['Averaged', 'Pair', 'Lateralized'],
-                    cache=None):
+                    cache=None, log10=True, baseline=True):
     """Read source reconstructed files, baseline correct and aggregate into
     area clusters.
 
@@ -77,20 +78,25 @@ def aggregate_files(data_globstring, base_globstring, baseline_time,
     if not (data_globstring == base_globstring):
         with Cache() as base_cache:
             tfr_baseline = base_cache.get(base_globstring)
+            if log10:
+                tfr_baseline = 10*np.log10(tfr_baseline)
             tfr_baseline = tfr_baseline.groupby(['freq', 'area']).mean()
 
     if cache is None:
         cache = Cache()
     tfr_data = cache.get(data_globstring)
+    if log10:
+        tfr_data = 10*np.log10(tfr_data)
     if tfr_baseline is None:
         tfr_baseline = tfr_data.groupby(['freq', 'area']).mean()
-    baseline = tfr_baseline.loc[:, slice(*baseline_time)].mean(1)
-    baseline.name = 'baseline'
-    cols = tfr_data.columns
-    tfr_data = tfr_data.join(baseline, on=['freq', 'area'])
-    baseline = tfr_data.loc[:, 'baseline']
-    tfr_data = ((tfr_data.loc[:, cols].sub(
-        baseline, axis=0)).div(baseline, axis=0)) * 100
+    if baseline:
+        baseline = tfr_baseline.loc[:, slice(*baseline_time)].mean(1)
+        baseline.name = 'baseline'
+        cols = tfr_data.columns
+        tfr_data = tfr_data.join(baseline, on=['freq', 'area'])
+        baseline = tfr_data.loc[:, 'baseline']
+        tfr_data = ((tfr_data.loc[:, cols].sub(
+            baseline, axis=0)).div(baseline, axis=0)) * 100
     aggs = aggregate(tfr_data, hemis)
     return aggs
 
