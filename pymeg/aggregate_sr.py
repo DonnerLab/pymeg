@@ -79,14 +79,14 @@ def aggregate_files(data_globstring, base_globstring, baseline_time,
         with Cache() as base_cache:
             tfr_baseline = base_cache.get(base_globstring)
             if log10:
-                tfr_baseline = 10*np.log10(tfr_baseline)
+                tfr_baseline = 10 * np.log10(tfr_baseline)
             tfr_baseline = tfr_baseline.groupby(['freq', 'area']).mean()
 
     if cache is None:
         cache = Cache()
     tfr_data = cache.get(data_globstring)
     if log10:
-        tfr_data = 10*np.log10(tfr_data)
+        tfr_data = 10 * np.log10(tfr_data)
     if tfr_baseline is None:
         tfr_baseline = tfr_data.groupby(['freq', 'area']).mean()
     if baseline:
@@ -135,7 +135,17 @@ def agg2hdf(agg, filename):
                     'rows_' + index] = index_vals
 
 
-def hdf2agg(filename, hemi=None, cluster=None, freq=None):
+def delayed_agg(filename, hemi=None, cluster=None, freq=None):
+    from functools import partial
+    return partial(hdf2agg, filename, hemi=hemi, cluster=cluster, freq=freq)
+
+
+def hdf2agg(filenames, hemi=None, cluster=None, freq=None):
+    return pd.concat([_hdf2agg(f, hemi, cluster, freq)
+                      for f in ensure_iter(filenames)])
+
+
+def _hdf2agg(filename, hemi=None, cluster=None, freq=None):
     """Convert HDF file back to aggregate DataFrame.
 
     Args:
@@ -157,12 +167,15 @@ def hdf2agg(filename, hemi=None, cluster=None, freq=None):
             if hemi is not None and not (str(hemi) == fhemi):
                 continue
             for fcluster, cd in hd.items():
-                if cluster is not None and not (str(cluster) == fcluster):
+                if (cluster is not None) and (
+                        not any([str(c) == fcluster for c in
+                                 ensure_iter(cluster)])):
                     continue
                 for fF, Fd in cd.items():
                     if freq is not None and not (str(freq) == fF):
                         continue
                     dfs.append(get_df_from_hdf(Fd))
+
     return pd.concat(dfs)
 
 
@@ -190,6 +203,7 @@ def get_df_from_hdf(dataset):
             row_names.append(key.replace('rows_', ''))
     index = pd.MultiIndex.from_arrays(rows)
     index.names = row_names
+
     cols = pd.MultiIndex.from_arrays(cols)
     cols.names = col_names
     return pd.DataFrame(dataset[:], index=index, columns=cols)
@@ -202,10 +216,15 @@ def aggregate(tfr_data, hemis):
     from pymeg import atlas_glasser
     all_clusters, _, _, _ = atlas_glasser.get_clusters()
     clusters = []
+    tfr_areas = np.unique(tfr_data.index.get_level_values('area'))
     for hemi, cluster in product(hemis, all_clusters.keys()):
         print('Working on %s, %s' % (hemi, cluster))
         tfrs_rh = [area for area in all_clusters[cluster] if 'rh' in area]
         tfrs_lh = [area for area in all_clusters[cluster] if 'lh' in area]
+        tfrs_rh = [t for t in tfr_areas if any(
+            [t.lower() in a.lower() for a in tfrs_rh])]
+        tfrs_lh = [t for t in tfr_areas if any(
+            [t.lower() in a.lower() for a in tfrs_lh])]
         lh_idx = tfr_data.index.isin(tfrs_lh, level='area')
         rh_idx = tfr_data.index.isin(tfrs_rh, level='area')
         left = tfr_data.loc[lh_idx, :].groupby(
@@ -215,9 +234,9 @@ def aggregate(tfr_data, hemis):
 
         if hemi == 'Pair':
             left.loc[:, 'cluster'] = cluster + '_LH'
-            left.loc[:, 'hemi'] = 'LH'
-            left.loc[:, 'cluster'] = cluster + '_RH'
-            left.loc[:, 'hemi'] = 'RH'
+            left.loc[:, 'hemi'] = 'Pair'
+            right.loc[:, 'cluster'] = cluster + '_RH'
+            right.loc[:, 'hemi'] = 'Pair'
             clusters.append(left)
             clusters.append(right)
         else:
@@ -232,3 +251,14 @@ def aggregate(tfr_data, hemis):
     df.set_index(['cluster', 'hemi'], append=True, inplace=True)
     return df.reorder_levels(
         ['hemi', 'cluster', 'trial', 'freq'])
+
+
+def ensure_iter(input):
+    if isinstance(input, str):
+        yield input
+    else:
+        try:
+            for item in input:
+                yield item
+        except TypeError:
+            yield input
