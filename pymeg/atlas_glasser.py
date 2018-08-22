@@ -134,6 +134,34 @@ def get_hcp_labels(subjects_dir, subjects):
                 )
 
 
+def get_JWDG_labels(subject, subjects_dir):
+    import glob
+    lh_labels = glob.glob(os.path.join(
+        subjects_dir, 'fsaverage', 'label', 'lh.JWDG*'))
+    rh_labels = glob.glob(os.path.join(
+        subjects_dir, 'fsaverage', 'label', 'rh.JWDG*'))
+
+    mni_reg_file = os.path.join(
+        subjects_dir, subject, 'mri', 'transforms', 'reg.mni152.2mm.lta')
+    if not os.path.isfile(mni_reg_file):
+        print('Doing mni152reg')
+        os.system('mni152reg --s %s' % subject)
+
+    for hemi, labels in zip(['lh', 'rh'], [lh_labels, rh_labels]):
+        for label in labels:
+            align_command = 'mri_label2label \
+                 --srclabel {label} \
+                 --srcsubject fsaverage \
+                 --trgsubject {subject} \
+                 --regmethod surface \
+                 --trglabel {base_name} \
+                 --hemi {hemi}'.format(label=label, subject=subject,
+                                       base_name=label.split('/')[-1],
+                                       hemi=hemi)
+            print(align_command)
+            os.system(align_command)
+
+
 def get_clusters():
 
     visual_field_clusters = {
