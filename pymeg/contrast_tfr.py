@@ -380,8 +380,8 @@ def plot_mosaic(tfr_data, vmin=-25, vmax=25, cmap='RdBu_r',
         time_cutoff = (-1, .5)
         xticks = [-1, -0.75, -0.5, -0.25, 0, 0.25, 0.5]
         xticklabels = ['-1', '', '-0.5', '', '0\nResponse', '', '0.5']
-        yticks = [25, 50, 75, 100, 125]
-        yticklabels = ['25', '', '75', '', '125']
+        yticks = [1, 25, 50, 75, 100, 125]
+        yticklabels = ['1', '25', '', '75', '', '125']
         xmarker = [0, 1]
         baseline = None
     from matplotlib import gridspec
@@ -420,9 +420,10 @@ def plot_mosaic(tfr_data, vmin=-25, vmax=25, cmap='RdBu_r',
             plt.yticks(yticks, [''] * len(yticks))
             plt.xticks(xticks, [''] * len(xticks))
             set_title(name, times, freqs, plt.gca())
-            plt.tick_params(direction='in', length=3)
+            plt.tick_params(direction='inout', length=2, zorder=100)
             plt.xlim(time_cutoff)
-            plt.ylim([10, 147.5])
+            plt.ylim([1, 147.5])
+            plt.axhline(10, color='k', lw=1, alpha=0.5, linestyle='--')
         except ValueError as e:
             print(name, area, e)
     plt.subplot(gs[nrows - 2, 0])
@@ -439,11 +440,11 @@ def plot_mosaic(tfr_data, vmin=-25, vmax=25, cmap='RdBu_r',
     for xmark in xmarker:
         plt.axvline(xmark, color='k', lw=1, zorder=-1, alpha=0.5)
     if baseline is not None:
-        plt.fill_between(baseline, y1=[10, 10],
+        plt.fill_between(baseline, y1=[1, 1],
                          y2=[150, 150], color='k', alpha=0.5)
     plt.tick_params(direction='in', length=3)
     plt.xlim(time_cutoff)
-    plt.ylim([10, 147.5])
+    plt.ylim([1, 147.5])
     plt.xlabel('time [s]')
     plt.ylabel('Freq [Hz]')
     sns.despine(ax=plt.gca())
@@ -459,7 +460,7 @@ def plot_tfr(df, vmin=-5, vmax=5, cmap='RdBu_r', threshold=0.05):
 
     cax = pmi(plt.gca(), tfr.mean(0), times, yvals=freqs,
               yscale='linear', vmin=vmin, vmax=vmax, mask=sig < threshold,
-              mask_alpha=1, mask_cmap=cmap, cmap=cmap)
+              mask_alpha=1, mask_cmap=cmap, cmap=cmap, linewidth=1)
 
     return cax, times, freqs, tfr
 
