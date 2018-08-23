@@ -124,7 +124,7 @@ def load_tfr_contrast(data_globstring, base_globstring, meta_data, conditions,
     weights = weight_dicts.pop()
     [weights.update(w) for w in weight_dicts]
     # weights = {(k, v) for k, v in [t[1] for t in tfr_conditions]}
-    tfrs.append(pd.concat([t[0] for t in tfr_conditions]))
+    tfrs.append(pd.concat([t[0] for t in tfr_conditions if t[0] is not None]))
     tfrs = pd.concat(tfrs)
     return tfrs, weights
 
@@ -149,6 +149,8 @@ def make_tfr_contrasts(tfr_data, tfr_data_to_baseline, meta_data,
         tfr_data.index.isin(condition_ind, level='trial'), :])
     num_trials_in_condition = len(np.unique(
         tfr_data_condition.index.get_level_values('trial')))
+    if num_trials_in_condition == 0:
+        return None, {condition: num_trials_in_condition}
     tfr_data_condition = tfr_data_condition.groupby(['freq', 'area']).mean()
 
     # apply baseline, and collapse across sensors:
@@ -257,7 +259,7 @@ def compute_contrast(contrasts, hemis, data_globstring, base_globstring,
         baseline_time: tuple
 
     """
-    all_clusters, _, _, _ = atlas_glasser.get_clusters()
+
     # load for all subjects:
     tfr_condition = []
     from functools import reduce
@@ -271,6 +273,19 @@ def compute_contrast(contrasts, hemis, data_globstring, base_globstring,
                                     baseline_time, n_jobs=n_jobs,
                                     cache=cache)
 
+    # Lower case all area names
+    # FIXME: Set all area names to lower case!
+    all_clusters, _, _, _ = atlas_glasser.get_clusters()
+    tfr_areas = np.array([a for a in tfr_condition.index.levels[
+        np.where(np.array(tfr_condition.index.names) == 'area')[0][0]]])
+    tfr_areas_lower = np.array([area.lower() for area in tfr_areas])
+    for cluster, areas in all_clusters.items():
+        new_areas = []
+        for area in areas:
+            idx = np.where(tfr_areas_lower == area.lower())[0]
+            if len(idx) == 1:
+                new_areas.append(tfr_areas[idx[0]])
+        all_clusters[cluster] = new_areas
     # mean across sessions:
     tfr_condition = tfr_condition.groupby(
         ['area', 'condition', 'freq']).mean()
@@ -295,19 +310,40 @@ def compute_contrast(contrasts, hemis, data_globstring, base_globstring,
                     tfrs_rh.append(subset)
                 else:
                     tfrs_lh.append(subset)
+            # What happens when an area is not defined for both hemis?
+            if (len(tfrs_lh) == 0) and (len(tfrs_rh) == 0):
+                logging.warn('Skipping condition %s in cluster %s' %
+                             (condition, cluster))
+                continue
+            try:
+                left.append(pd.concat(tfrs_lh))
+            except ValueError:
+                pass
+            try:
+                right.append(pd.concat(tfrs_rh))
+            except ValueError:
+                pass
 
-            left.append(pd.concat(tfrs_lh))
-            right.append(pd.concat(tfrs_rh))
-
-        if hemi == 'lh_is_ipsi':
+        if (len(left) == 0) and (len(right) == 0):
+            logging.warn('Skipping cluster %s' % (cluster))
+            continue
+        if hemi == 'rh_is_ipsi':
+            left, right = right, left
+        if 'is_ipsi' in hemi:
+            if not len(left) == len(right):
+                logging.warn('Skipping cluster %s: does not have the same number of lh/rh rois' %
+                             (cluster))
+                continue
             tfrs = [left[i] - right[i]
                     for i in range(len(left))]
-        elif hemi == 'rh_is_ipsi':
-            tfrs = [right[i] - left[i]
-                    for i in range(len(left))]
         else:
-            tfrs = [(right[i] + left[i]) / 2
-                    for i in range(len(left))]
+            if (len(right) == 0) and (len(left) == len(weights)):
+                tfrs = left
+            elif (len(left) == 0) and (len(right) == len(weights)):
+                tfrs = right
+            else:
+                tfrs = [(right[i] + left[i]) / 2
+                        for i in range(len(left))]
         assert(len(tfrs) == len(weights))
         tfrs = [tfr * weight for tfr, weight in zip(tfrs, weights)]
         tfrs = reduce(lambda x, y: x + y, tfrs)
@@ -489,16 +525,16 @@ def plot_tfr_stats(times, freqs, tfr, threshold=0.05):
                                              )
     sig = cluster_p_values.reshape((tfr.shape[1], tfr.shape[2]))
 
-    #df = np.array(list(np.diff(freqs) / 2) + [freqs[-1] - freqs[-2]])
-    #dt = np.array(list(np.diff(times) / 2) + [times[-1] - times[-2]])
-    #from scipy.interpolate import interp2d
-    #print(np.unique((sig < threshold).astype(float)))
-    #i = interp2d(times, freqs, sig.astype(float))
+    # df = np.array(list(np.diff(freqs) / 2) + [freqs[-1] - freqs[-2]])
+    # dt = np.array(list(np.diff(times) / 2) + [times[-1] - times[-2]])
+    # from scipy.interpolate import interp2d
+    # print(np.unique((sig < threshold).astype(float)))
+    # i = interp2d(times, freqs, sig.astype(float))
     # X, Y = (np.linspace(times[0], times[-1], len(times) * 25),
     #        np.linspace(freqs[0], freqs[-1], len(freqs) * 25))
-    #Z = i(X.ravel(), Y.ravel())
+    # Z = i(X.ravel(), Y.ravel())
 
-    #plt.gca().pcolormesh(times, freqs, sig, vmin=0, vmax=1, cmap=cmap)
+    # plt.gca().pcolormesh(times, freqs, sig, vmin=0, vmax=1, cmap=cmap)
 
     plt.gca().contour(
         times, freqs,
