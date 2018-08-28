@@ -12,10 +12,12 @@ from glob import glob
 from pymeg import lcmv
 from pymeg import preprocessing
 from pymeg import source_reconstruction as sr
-
+import pandas as pd
+import pickle
 
 memory = Memory(cachedir=os.environ['PYMEG_CACHE_DIR'])
-path = '/home/gprat/cluster_archive/Master_Project/preprocessed_megdata'
+#path = '/home/gprat/cluster_archive/Master_Project/preprocessed_megdata'
+path = '/mnt/archive/genis/Master_Project/preprocessed_megdata'
 
 
 def set_n_threads(n):
@@ -56,27 +58,41 @@ def lcmvfilename(subject, session, signal, recording, epoch, chunk=None):
 
 
 def get_filenames(subject, session, recording):
-    if recording == 1:
-        stimulus = join(path, 'stim_meta_sub%i_sess%i_block{1,2,3}_offset*-epo.fif.gz' % (
-            subject, session, recording))
-        response = join(path, 'resp_meta_sub%i_sess%i_block{1,2,3}_offset*-epo.fif.gz' % (
-            subject, session, recording))
-    elif recording == 2:
-        stimulus = join(path, 'stim_meta_sub%i_sess%i_block{4,5,6}_offset*-epo.fif.gz' % (
-            subject, session, recording))
-        response = join(path, 'resp_meta_sub%i_sess%i_block{4,5,6}_offset*-epo.fif.gz' % (
-            subject, session, recording))
-    elif recording == 3:
-        stimulus = join(path, 'stim_meta_sub%i_sess%i_block{7,8,9}_offset*-epo.fif.gz' % (
-            subject, session, recording))
-        response = join(path, 'resp_meta_sub%i_sess%i_block{7,8,9}_offset*-epo.fif.gz' % (
-            subject, session, recording))
+    fname='/mnt/archive/genis/Master_Project/preprocessed_megdata/filenames_sub%i.pickle'% (subject)
+    f=open(fname,'rb')
+    data=pickle.load(f)
+    df=pd.DataFrame.from_dict(data)
+    blocks=df[df.subject==subject][df.session==session][df.trans_matrix==recording].block
+    stimulus=[]
+    response=[]
+    for b in blocks:
+        stimulus.append( path+'/stim_meta_sub%i_sess%i_block%i_offset*-epo.fif.gz' % (subject, session,b))
+        response.append( path+'/resp_meta_sub%i_sess%i_block%i_offset*-epo.fif.gz' % (subject, session,b))              
+
+
+
+#    if recording == 1:
+#        stimulus = join(path, 'stim_meta_sub%i_sess%i_block[1-3]_offset*-epo.fif.gz' % (
+#            subject, session))
+#        response = join(path, 'resp_meta_sub%i_sess%i_block[1-3]_offset*-epo.fif.gz' % (
+#            subject, session))
+#    elif recording == 2:
+#        stimulus = join(path, 'stim_meta_sub%i_sess%i_block[4-6]_offset*-epo.fif.gz' % (
+#            subject, session))
+#        response = join(path, 'resp_meta_sub%i_sess%i_block[4-6]_offset*-epo.fif.gz' % (
+#            subject, session))
+#    elif recording == 3:
+#        stimulus = join(path, 'stim_meta_sub%i_sess%i_block[7-9]_offset*-epo.fif.gz' % (
+#            subject, session))
+#        response = join(path, 'resp_meta_sub%i_sess%i_block[7-9]_offset*-epo.fif.gz' % (
+#            subject, session))
     return stimulus, response
 
 
 def get_stim_epoch(subject, session, recording):
     filenames = glob(get_filenames(subject, session, recording)[0])
     epochs = preprocessing.load_epochs(filenames)
+    epochs=preprocessing.concatenate_epochs(epochs,None)
     epochs = epochs.pick_channels(
         [x for x in epochs.ch_names if x.startswith('M')])
 
@@ -90,10 +106,13 @@ def get_stim_epoch(subject, session, recording):
 def get_response_epoch(subject, session, recording):
     stimulus = glob(get_filenames(subject, session, recording)[0])
     response = glob(get_filenames(subject, session, recording)[1])
+    
     stimulus = preprocessing.load_epochs(stimulus)
+    stimulus=preprocessing.concatenate_epochs(stimulus,None)
     stimulus = stimulus.pick_channels(
         [x for x in stimulus.ch_names if x.startswith('M')])
     response = preprocessing.load_epochs(response)
+    response=preprocessing.concatenate_epochs(response,None)
     response = stimulus.pick_channels(
         [x for x in response.ch_names if x.startswith('M')])
 
