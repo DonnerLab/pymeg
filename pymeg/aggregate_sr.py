@@ -226,9 +226,9 @@ def aggregate(tfr_data, hemis):
         tfrs_rh = [area for area in all_clusters[cluster] if 'rh' in area]
         tfrs_lh = [area for area in all_clusters[cluster] if 'lh' in area]
         tfrs_rh = [t for t in tfr_areas if any(
-            [t.lower() in a.lower() for a in tfrs_rh])]
+            [a.lower() in t.lower() for a in tfrs_rh])]
         tfrs_lh = [t for t in tfr_areas if any(
-            [t.lower() in a.lower() for a in tfrs_lh])]
+            [a.lower() in t.lower() for a in tfrs_lh])]
         lh_idx = tfr_data.index.isin(tfrs_lh, level='area')
         rh_idx = tfr_data.index.isin(tfrs_rh, level='area')
         left = tfr_data.loc[lh_idx, :].groupby(
