@@ -10,8 +10,8 @@ from pymeg import atlas_glasser
 
 memory = Memory(cachedir=os.environ['PYMEG_CACHE_DIR'], verbose=0)
 
-backend = 'loky'
-
+# backend = 'loky'
+backend = 'multiprocessing'
 
 class Cache(object):
     """A cache that can prevent reloading from disk.
@@ -290,68 +290,70 @@ def compute_contrast(contrasts, hemis, data_globstring, base_globstring,
     tfr_condition = tfr_condition.groupby(
         ['area', 'condition', 'freq']).mean()
     cluster_contrasts = []
-    for cur_contrast, hemi, cluster in product(contrasts.items(), hemis,
-                                               all_clusters.keys()):
-        contrast, (conditions, weights) = cur_contrast
-        logging.info('Start computing contrast %s for cluster %s' %
-                     (contrast, cluster))
-        right = []
-        left = []
-        for condition in conditions:
-            tfrs_rh = []
-            tfrs_lh = []
-            for area in all_clusters[cluster]:
-                area_idx = tfr_condition.index.isin([area], level='area')
-                condition_idx = tfr_condition.index.isin(
-                    [condition], level='condition')
-                subset = tfr_condition.loc[area_idx & condition_idx].groupby(
-                    ['freq']).mean()
-                if 'rh' in area:
-                    tfrs_rh.append(subset)
-                else:
-                    tfrs_lh.append(subset)
-            # What happens when an area is not defined for both hemis?
-            if (len(tfrs_lh) == 0) and (len(tfrs_rh) == 0):
-                logging.warn('Skipping condition %s in cluster %s' %
-                             (condition, cluster))
-                continue
-            try:
-                left.append(pd.concat(tfrs_lh))
-            except ValueError:
-                pass
-            try:
-                right.append(pd.concat(tfrs_rh))
-            except ValueError:
-                pass
+    # for cur_contrast, hemi, cluster in product(contrasts.items(), hemis,
+    #                                            all_clusters.keys()):
+    for cur_contrast, hemi in zip(contrasts.items(), hemis,):
+        for cluster in all_clusters.keys():
+            contrast, (conditions, weights) = cur_contrast
+            logging.info('Start computing contrast %s for cluster %s' %
+                         (contrast, cluster))
+            right = []
+            left = []
+            for condition in conditions:
+                tfrs_rh = []
+                tfrs_lh = []
+                for area in all_clusters[cluster]:
+                    area_idx = tfr_condition.index.isin([area], level='area')
+                    condition_idx = tfr_condition.index.isin(
+                        [condition], level='condition')
+                    subset = tfr_condition.loc[area_idx & condition_idx].groupby(
+                        ['freq']).mean()
+                    if 'rh' in area:
+                        tfrs_rh.append(subset)
+                    else:
+                        tfrs_lh.append(subset)
+                # What happens when an area is not defined for both hemis?
+                if (len(tfrs_lh) == 0) and (len(tfrs_rh) == 0):
+                    logging.warn('Skipping condition %s in cluster %s' %
+                                 (condition, cluster))
+                    continue
+                try:
+                    left.append(pd.concat(tfrs_lh))
+                except ValueError:
+                    pass
+                try:
+                    right.append(pd.concat(tfrs_rh))
+                except ValueError:
+                    pass
 
-        if (len(left) == 0) and (len(right) == 0):
-            logging.warn('Skipping cluster %s' % (cluster))
-            continue
-        if hemi == 'rh_is_ipsi':
-            left, right = right, left
-        if 'is_ipsi' in hemi:
-            if not len(left) == len(right):
-                logging.warn('Skipping cluster %s: does not have the same number of lh/rh rois' %
-                             (cluster))
+            if (len(left) == 0) and (len(right) == 0):
+                logging.warn('Skipping cluster %s' % (cluster))
                 continue
-            tfrs = [left[i] - right[i]
-                    for i in range(len(left))]
-        else:
-            if (len(right) == 0) and (len(left) == len(weights)):
-                tfrs = left
-            elif (len(left) == 0) and (len(right) == len(weights)):
-                tfrs = right
-            else:
-                tfrs = [(right[i] + left[i]) / 2
+            if hemi == 'rh_is_ipsi':
+                left, right = right, left
+            if 'is_ipsi' in hemi:
+                if not len(left) == len(right):
+                    logging.warn('Skipping cluster %s: does not have the same number of lh/rh rois' %
+                                 (cluster))
+                    continue
+                tfrs = [left[i] - right[i]
                         for i in range(len(left))]
-        assert(len(tfrs) == len(weights))
-        tfrs = [tfr * weight for tfr, weight in zip(tfrs, weights)]
-        tfrs = reduce(lambda x, y: x + y, tfrs)
-        tfrs = tfrs.groupby('freq').mean()
-        tfrs.loc[:, 'cluster'] = cluster
-        tfrs.loc[:, 'contrast'] = contrast
-        tfrs.loc[:, 'hemi'] = hemi
-        cluster_contrasts.append(tfrs)
+            else:
+                if (len(right) == 0) and (len(left) == len(weights)):
+                    tfrs = left
+                elif (len(left) == 0) and (len(right) == len(weights)):
+                    tfrs = right
+                else:
+                    tfrs = [(right[i] + left[i]) / 2
+                            for i in range(len(left))]
+            assert(len(tfrs) == len(weights))
+            tfrs = [tfr * weight for tfr, weight in zip(tfrs, weights)]
+            tfrs = reduce(lambda x, y: x + y, tfrs)
+            tfrs = tfrs.groupby('freq').mean()
+            tfrs.loc[:, 'cluster'] = cluster
+            tfrs.loc[:, 'contrast'] = contrast
+            tfrs.loc[:, 'hemi'] = hemi
+            cluster_contrasts.append(tfrs)
     logging.info('Done compute contrast')
     return pd.concat(cluster_contrasts)
 
