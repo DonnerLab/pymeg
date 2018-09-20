@@ -195,28 +195,36 @@ def labels_remove_overlap(labels, priority_filters=['wang', 'JWG'],):
     
     vertices_nr_ori = sum([l.vertices.shape[0] for l in labels])
 
-    # get all category 1 vertices:
-    cat1_vertices = []
-    for l in labels:
-        is_priority = np.array([(f in l.name) for f in priority_filters]).sum() > 0
-        if is_priority:
-            cat1_vertices.append(l.vertices)
-    cat1_vertices = np.unique(np.concatenate(cat1_vertices))
+    labels_no_overlap = []
 
-    # remove category1 vertices from all other labels:
-    for i, l in enumerate(labels):
-        is_priority = np.array([(f in l.name) for f in priority_filters]).sum() > 0
-        if not is_priority:
-            cat1_indices = np.isin(labels[i].vertices, cat1_vertices)
-            labels[i].vertices = labels[i].vertices[~cat1_indices]
-    
-    vertices_nr_new = sum([l.vertices.shape[0] for l in labels])
+    for hemi in ['lh', 'rh']:
+
+        labels_hemi = [l for l in labels if l.hemi == hemi]
+
+        # get all category 1 vertices:
+        cat1_vertices = []
+        for l in labels_hemi:
+            is_priority = np.array([(f in l.name) for f in priority_filters]).sum() > 0
+            if is_priority:
+                cat1_vertices.append(l.vertices)
+        cat1_vertices = np.unique(np.concatenate(cat1_vertices))
+
+        # remove category1 vertices from all other labels:
+        for i, l in enumerate(labels_hemi):
+            is_priority = np.array([(f in l.name) for f in priority_filters]).sum() > 0
+            if not is_priority:
+                cat1_indices = np.isin(labels_hemi[i].vertices, cat1_vertices)
+                labels_hemi[i].vertices = labels_hemi[i].vertices[~cat1_indices]
+        
+        labels_no_overlap.extend(labels_hemi)
+
+    vertices_nr_new = sum([l.vertices.shape[0] for l in labels_no_overlap])
     
     print('vertices ori: {}'.format(vertices_nr_ori))
     print('vertices new:  {}'.format(vertices_nr_new))
     print('excluded: {}'.format(vertices_nr_ori-vertices_nr_new))
     
-    return labels
+    return labels_no_overlap
 
 
 '''
