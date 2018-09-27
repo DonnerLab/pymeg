@@ -108,10 +108,6 @@ def load_tfr_contrast(data_globstring, base_globstring, meta_data, conditions,
     else:
         tfr_data_to_baseline = tfr_data
 
-    if baseline_per_condition:
-        # apply condition ind, collapse across trials, and get baseline::
-        tfr_data_to_baseline = tfr_data_to_baseline.groupby(
-            ['freq', 'area']).mean()
     # compute contrasts
     tasks = []
     for condition in conditions:
@@ -140,7 +136,7 @@ def make_tfr_contrasts(tfr_data, tfr_data_to_baseline, meta_data,
         tfr_data_to_baseline = (tfr_data_to_baseline.loc[
             tfr_data_to_baseline.index.isin(condition_ind, level='trial'), :]
             .groupby(['freq', 'area']).mean())
-
+    
     baseline = baseline_per_sensor_get(
         tfr_data_to_baseline, baseline_time=baseline_time)
 
@@ -167,7 +163,7 @@ def make_tfr_contrasts(tfr_data, tfr_data_to_baseline, meta_data,
 
 @memory.cache(ignore=['cache'])
 def single_conditions(conditions, data_glob, base_glob, meta_data,
-                      baseline_time, baseline_per_condition=False,
+                      baseline_time, baseline_per_condition=True,
                       n_jobs=1, cache=Cache(cache=False)):
 
     tfr_condition, weights = load_tfr_contrast(
@@ -181,7 +177,7 @@ def single_conditions(conditions, data_glob, base_glob, meta_data,
 
 @memory.cache(ignore=['cache'])
 def pool_conditions(conditions, data_globs, base_globs, meta_data,
-                    baseline_time, baseline_per_condition=False,
+                    baseline_time, baseline_per_condition=True,
                     n_jobs=1, cache=Cache(cache=False)):
     weights = {}
     tfrs = {}
@@ -215,6 +211,8 @@ def pool_conditions(conditions, data_globs, base_globs, meta_data,
         for condition in total_weights.keys():
             condition_ind = tfr.index.get_level_values(
                 'condition') == condition
+            if sum(condition_ind) == 0:
+                continue
             w = weights[key][condition] / total_weights[condition]
             tfr.loc[condition_ind, :] *= w
             ind_weights[condition].append(w)
@@ -268,10 +266,11 @@ def compute_contrast(contrasts, hemis, data_globstring, base_globstring,
     conditions = set(
         reduce(lambda x, y: x + y, [x[0] for x in contrasts.values()]))
 
-    tfr_condition = pool_conditions(conditions, data_globstring,
-                                    base_globstring, meta_data,
-                                    baseline_time, n_jobs=n_jobs,
-                                    cache=cache)
+    tfr_condition = pool_conditions(conditions=conditions, data_globs=data_globstring, 
+                                    base_globs=base_globstring, meta_data=meta_data,
+                                    baseline_time=baseline_time, 
+                                    baseline_per_condition=baseline_per_condition,
+                                    n_jobs=n_jobs, cache=cache)
 
     # Lower case all area names
     # FIXME: Set all area names to lower case!

@@ -19,6 +19,9 @@ from mne.time_frequency.tfr import _compute_tfr
 
 memory = Memory(cachedir=os.environ['PYMEG_CACHE_DIR'], verbose=0)
 
+# backend = 'loky'
+backend = 'multiprocessing'
+
 fois = np.arange(10, 150, 5)
 default_tfr = {'foi': fois, 'cycles': fois * 0.1, 'time_bandwidth': 2,
                'n_jobs': 1, 'est_val': fois, 'est_key': 'F'}
@@ -281,7 +284,7 @@ def par_reconstruct(pre_estimator, pre_est_args, epochs, events, times,
         'Prepared %i tasks for parallel execution with %i jobs' %
         (len(tasks), njobs)
     )
-    return Parallel(n_jobs=njobs, verbose=1)(tasks)
+    return Parallel(n_jobs=njobs, verbose=1, backend=backend)(tasks)
 
 
 def apply_lcmv(tfrdata, est_key, est_vals, events, times, info,
