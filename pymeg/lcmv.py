@@ -101,12 +101,14 @@ def flip_and_avg_vertices(data):
     Returns:
         A single time series constructed by averaging over vertices.
     """
+
     for i in range(data.shape[1]):
         if np.corrcoef(data[:, i, :].ravel(),
                        data[:, 0, :].ravel())[0, 1] < 0:
             data[:, i, :] = -data[:, i, :]
     if all(data.mean((0, 2)) < 0):
         data = -data
+
     return data
 
 
@@ -135,12 +137,12 @@ def setup_filters(info, forward, data_cov, noise_cov, labels,
     """
     logging.info('Getting filter')
     tasks = []
+    print('.')
     for l in labels:
         tasks.append(delayed(get_filter)(
             info, forward, data_cov,
             noise_cov, label=l, reg=reg,
             pick_ori='max-power'))
-
     filters = Parallel(n_jobs=njobs, verbose=1)(tasks)
     return {name: f for name, f in filters}
 
@@ -344,6 +346,7 @@ def apply_lcmv(tfrdata, est_key, est_vals, events, times, info,
                                          filters=filter,
                                          info=info, tmin=times.min(),
                                          max_ori_out=max_ori_out)])
+            #data = filter['sign_flip_vector'][np.newaxis, :, np.newaxis] * data
             if post_func is None:
                 results.append(accumulate_func(
                     data, est_key=est_key, time=times, est_val=est_vals[freq],
@@ -386,6 +389,8 @@ def get_filter(info, forward, data_cov, noise_cov, label=None, reg=0.05,
                        reg=0.05,
                        pick_ori='max-power',
                        label=label)
+    from mne.label import label_sign_flip
+    filter['sign_flip_vector'] = label_sign_flip(label, forward['src'])
     del filter['data_cov']
     del filter['noise_cov']
     del filter['src']
@@ -402,7 +407,7 @@ def get_filters(estimator, epochs, forward, source, noise_cov, data_cov,
 
 def _apply_lcmv(data, filters, info, tmin, max_ori_out):
     """Apply LCMV spatial filter to data for source reconstruction.
-    
+
     Copied directly from MNE to remove dependence on source space in
     filter. This makes the filter much smaller and easier to use 
     multiprocessing here.

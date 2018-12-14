@@ -13,6 +13,7 @@ memory = Memory(cachedir=os.environ['PYMEG_CACHE_DIR'], verbose=0)
 # backend = 'loky'
 backend = 'multiprocessing'
 
+
 class Cache(object):
     """A cache that can prevent reloading from disk.
 
@@ -136,7 +137,7 @@ def make_tfr_contrasts(tfr_data, tfr_data_to_baseline, meta_data,
         tfr_data_to_baseline = (tfr_data_to_baseline.loc[
             tfr_data_to_baseline.index.isin(condition_ind, level='trial'), :]
             .groupby(['freq', 'area']).mean())
-    
+
     baseline = baseline_per_sensor_get(
         tfr_data_to_baseline, baseline_time=baseline_time)
 
@@ -175,7 +176,7 @@ def single_conditions(conditions, data_glob, base_glob, meta_data,
         ['area', 'condition', 'freq']).mean(), weights
 
 
-@memory.cache(ignore=['cache'])
+#@memory.cache(ignore=['cache'])
 def pool_conditions(conditions, data_globs, base_globs, meta_data,
                     baseline_time, baseline_per_condition=True,
                     n_jobs=1, cache=Cache(cache=False)):
@@ -257,20 +258,22 @@ def compute_contrast(contrasts, hemis, data_globstring, base_globstring,
         baseline_time: tuple
 
     """
-
+    from itertools import product
     # load for all subjects:
     tfr_condition = []
     from functools import reduce
-    from itertools import product
 
     conditions = set(
         reduce(lambda x, y: x + y, [x[0] for x in contrasts.values()]))
 
-    tfr_condition = pool_conditions(conditions=conditions, data_globs=data_globstring, 
-                                    base_globs=base_globstring, meta_data=meta_data,
-                                    baseline_time=baseline_time, 
-                                    baseline_per_condition=baseline_per_condition,
-                                    n_jobs=n_jobs, cache=cache)
+    tfr_condition = pool_conditions(
+        conditions=conditions,
+        data_globs=data_globstring,
+        base_globs=base_globstring,
+        meta_data=meta_data,
+        baseline_time=baseline_time,
+        baseline_per_condition=baseline_per_condition,
+        n_jobs=n_jobs, cache=cache)
 
     # Lower case all area names
     # FIXME: Set all area names to lower case!
@@ -291,7 +294,7 @@ def compute_contrast(contrasts, hemis, data_globstring, base_globstring,
     cluster_contrasts = []
     # for cur_contrast, hemi, cluster in product(contrasts.items(), hemis,
     #                                            all_clusters.keys()):
-    for cur_contrast, hemi in zip(contrasts.items(), hemis,):
+    for cur_contrast, hemi in product(contrasts.items(), hemis,):
         for cluster in all_clusters.keys():
             contrast, (conditions, weights) = cur_contrast
             logging.info('Start computing contrast %s for cluster %s' %
@@ -319,10 +322,12 @@ def compute_contrast(contrasts, hemis, data_globstring, base_globstring,
                 try:
                     left.append(pd.concat(tfrs_lh))
                 except ValueError:
+                    print("Exception 327")
                     pass
                 try:
                     right.append(pd.concat(tfrs_rh))
                 except ValueError:
+                    print("Exception 332")
                     pass
 
             if (len(left) == 0) and (len(right) == 0):
@@ -501,6 +506,24 @@ def plot_tfr(df, vmin=-5, vmax=5, cmap='RdBu_r', threshold=0.05):
               mask_alpha=1, mask_cmap=cmap, cmap=cmap, linewidth=1)
 
     return cax, times, freqs, tfr
+
+
+class TFRStats(object):
+    '''
+    Doubly persistent cache for TFR stats.
+    '''
+
+    def __init__(self):
+        self.cache = {}
+
+    def __call__(self, times, freqs, tfr, threshold=0.05):
+        import joblib
+        hash = joblib.hash([times, freqs, tfr, threshold])
+        if hash in self.cache:
+            return self.cache[hash]
+        tfr = get_tfr_stats(times, freqs, tfr, threshold)
+        self.cache[hash] = tfr
+        return tfr
 
 
 @memory.cache()
