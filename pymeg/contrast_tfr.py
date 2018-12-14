@@ -275,6 +275,7 @@ def compute_contrast(contrasts, hemis, data_globstring, base_globstring,
         baseline_per_condition=baseline_per_condition,
         n_jobs=n_jobs, cache=cache)
 
+
     # Lower case all area names
     # FIXME: Set all area names to lower case!
     all_clusters, _, _, _ = atlas_glasser.get_clusters()
@@ -407,10 +408,19 @@ def set_jw_style():
     sns.plotting_context()
 
 
+def pmi(*args, **kwargs):
+    from mne.viz.utils import _plot_masked_image as pmi
+    import mne
+    level = mne.set_log_level('ERROR', return_old_level=True)
+    cax = pmi(*args, **kwargs)
+    mne.set_log_level(level)
+    return cax
+
+
 def plot_mosaic(tfr_data, vmin=-25, vmax=25, cmap='RdBu_r',
                 ncols=4, epoch='stimulus', stats=False,
                 threshold=0.05):
-    from mne.viz.utils import _plot_masked_image as pmi
+
     if epoch == "stimulus":
         time_cutoff = (-0.5, 1.35)
         xticks = [0, 0.25, 0.5, 0.75, 1]
@@ -493,9 +503,148 @@ def plot_mosaic(tfr_data, vmin=-25, vmax=25, cmap='RdBu_r',
     sns.despine(ax=plt.gca())
 
 
+def plot_2epoch_mosaic(tfr_data, vmin=-25, vmax=25, cmap='RdBu_r',
+                       ncols=4, stats=False,
+                       threshold=0.05):
+
+    from matplotlib import gridspec
+    import pylab as plt
+    import seaborn as sns
+    ncols *= 2
+    set_jw_style()
+    sns.set_style('ticks')
+    nrows = int((len(atlas_glasser.areas) // (ncols / 2)) + 1)
+    gs = gridspec.GridSpec(nrows, ncols)
+
+    gs.update(wspace=0.01, hspace=0.05  )
+    i = 0
+    for (name, area) in atlas_glasser.areas.items():
+        for epoch in ['stimulus', 'response']:
+            column = int(np.mod(i, ncols))
+            row = int(i // ncols)
+
+            if epoch == "stimulus":
+                time_cutoff = (-0.5, 1.35)
+                xticks = [0, 0.25, 0.5, 0.75, 1]
+                xticklabels = ['0\nStim on', '', '.5', '', '1\nStim off']
+                yticks = [25, 50, 75, 100, 125]
+                yticklabels = ['25', '', '75', '', '125']
+                xmarker = [0, 1]
+                baseline = (-0.25, 0)
+            else:
+                time_cutoff = (-1, .5)
+                xticks = [-1, -0.75, -0.5, -0.25, 0, 0.25, 0.5]
+                xticklabels = ['-1', '', '-0.5',
+                               '', '0\nResponse', '', '0.5']
+                yticks = [1, 25, 50, 75, 100, 125]
+                yticklabels = ['1', '25', '', '75', '', '125']
+                xmarker = [0, 1]
+                baseline = None
+            try:
+                
+                plt.subplot(gs[row, column])
+                print(gs, type(row), type(column))
+                times, freqs, tfr = get_tfr(
+                    tfr_data.query(
+                        'cluster=="%s" & epoch=="%s"' % (area, epoch)),
+                    time_cutoff)
+                # cax = plt.gca().pcolormesh(times, freqs, np.nanmean(
+                #    tfr, 0), vmin=vmin, vmax=vmax, cmap=cmap, zorder=-2)
+                mask = None
+                if stats:
+                    _, _, cluster_p_values, _ = get_tfr_stats(
+                        times, freqs, tfr, threshold)
+                    sig = cluster_p_values.reshape(
+                        (tfr.shape[1], tfr.shape[2]))
+                    mask = sig < threshold
+                cax = pmi(plt.gca(),  np.nanmean(tfr, 0), times, yvals=freqs,
+                          yscale='linear', vmin=vmin, vmax=vmax,
+                          mask=mask, mask_alpha=1,
+                          mask_cmap=cmap, cmap=cmap)
+
+                # plt.grid(True, alpha=0.5)
+                for xmark in xmarker:
+                    plt.axvline(xmark, color='k', lw=1, zorder=-1, alpha=0.5)
+
+                plt.yticks(yticks, [''] * len(yticks))
+                plt.xticks(xticks, [''] * len(xticks))
+
+                plt.tick_params(direction='inout', length=2, zorder=100)
+                plt.xlim(time_cutoff)
+                plt.ylim([1, 147.5])
+                plt.axhline(10, color='k', lw=1, alpha=0.5, linestyle='--')
+
+                plt.axvline(0, color='k', lw=1, zorder=5, alpha=0.5)
+                if epoch == 'stimulus':                    
+                    plt.axvline(1, color='k', lw=1, zorder=5, alpha=0.5)
+
+            except ValueError as e:
+                print(name, area, e)
+            i += 1
+
+            if epoch == 'response':
+                set_title(name, times[0], freqs, plt.gca())
+    sns.despine(left=True, bottom=True)
+
+    epoch = "stimulus"
+    time_cutoff = (-0.5, 1.35)
+    xticks = [0, 0.25, 0.5, 0.75, 1]
+    xticklabels = ['0\nStim on', '', '.5', '', '1\nStim off']
+    yticks = [25, 50, 75, 100, 125]
+    yticklabels = ['25', '', '75', '', '125']
+    xmarker = [0, 1]
+    baseline = (-0.25, 0)
+    sns.despine(left=True, bottom=True)
+    plt.subplot(gs[nrows - 1, 0])
+    pmi(plt.gca(),  np.nanmean(tfr, 0) * 0, times, yvals=freqs,
+        yscale='linear', vmin=vmin, vmax=vmax,
+        mask=None, mask_alpha=1,
+        mask_cmap=cmap, cmap=cmap)
+    plt.xticks(xticks, xticklabels)
+    plt.yticks(yticks, yticklabels)
+    for xmark in xmarker:
+        plt.axvline(xmark, color='k', lw=1, zorder=-1, alpha=0.5)
+    if baseline is not None:
+        plt.fill_between(baseline, y1=[1, 1],
+                         y2=[150, 150], color='k', alpha=0.5)
+    plt.tick_params(direction='in', length=3)
+    plt.xlim(time_cutoff)
+    plt.ylim([1, 147.5])
+    plt.xlabel('time [s]')
+    plt.ylabel('Freq [Hz]')
+
+    epoch = 'response'
+    time_cutoff = (-1, .5)
+    xticks = [-1, -0.75, -0.5, -0.25, 0, 0.25, 0.5]
+    xticklabels = ['-1', '', '-0.5',
+                   '', '0\nResponse', '', '0.5']
+    yticks = [1, 25, 50, 75, 100, 125]
+    yticklabels = ['1', '25', '', '75', '', '125']
+    xmarker = [0, 1]
+    baseline = None
+
+    plt.subplot(gs[nrows - 1, 1])
+    pmi(plt.gca(),  np.nanmean(tfr, 0) * 0, times, yvals=freqs,
+        yscale='linear', vmin=vmin, vmax=vmax,
+        mask=None, mask_alpha=1,
+        mask_cmap=cmap, cmap=cmap)
+    plt.xticks(xticks, xticklabels)
+    plt.yticks(yticks, [])
+    for xmark in xmarker:
+        plt.axvline(xmark, color='k', lw=1, zorder=-1, alpha=0.5)
+    if baseline is not None:
+        plt.fill_between(baseline, y1=[1, 1],
+                         y2=[150, 150], color='k', alpha=0.5)
+    plt.tick_params(direction='in', length=3)
+    plt.xlim(time_cutoff)
+    plt.ylim([1, 147.5])
+    plt.xlabel('time [s]')
+    plt.ylabel('')
+    sns.despine(left=True, bottom=True)
+
+
 def plot_tfr(df, vmin=-5, vmax=5, cmap='RdBu_r', threshold=0.05):
     import pylab as plt
-    from mne.viz.utils import _plot_masked_image as pmi
     times, freqs, tfr = get_tfr(df, (-np.inf, np.inf))
     T_obs, clusters, cluster_p_values, h0 = get_tfr_stats(
         times, freqs, tfr, 0.05)
