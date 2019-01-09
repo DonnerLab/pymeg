@@ -511,7 +511,7 @@ def plot_2epoch_mosaic(tfr_data, vmin=-25, vmax=25, cmap='RdBu_r',
     nrows = int((len(atlas_glasser.areas) // (ncols / 2)) + 1)
     gs = gridspec.GridSpec(nrows, ncols)
 
-    gs.update(wspace=0.01, hspace=0.05  )
+    gs.update(wspace=0.01, hspace=0.05)
     i = 0
     for (name, area) in atlas_glasser.areas.items():
         for epoch in ['stimulus', 'response']:
@@ -536,9 +536,9 @@ def plot_2epoch_mosaic(tfr_data, vmin=-25, vmax=25, cmap='RdBu_r',
                 xmarker = [0, 1]
                 baseline = None
             try:
-                
+
                 plt.subplot(gs[row, column])
-                print(gs, type(row), type(column))
+
                 times, freqs, tfr = get_tfr(
                     tfr_data.query(
                         'cluster=="%s" & epoch=="%s"' % (area, epoch)),
@@ -547,8 +547,13 @@ def plot_2epoch_mosaic(tfr_data, vmin=-25, vmax=25, cmap='RdBu_r',
                 #    tfr, 0), vmin=vmin, vmax=vmax, cmap=cmap, zorder=-2)
                 mask = None
                 if stats:
-                    _, _, cluster_p_values, _ = get_tfr_stats(
-                        times, freqs, tfr, threshold)
+                    try:
+                        import joblib
+                        _, _, cluster_p_values, _ = stats[
+                            joblib.hash((times, freqs, tfr))]
+                    except KeyError:
+                        _, _, cluster_p_values, _ = get_tfr_stats(
+                            times, freqs, tfr, threshold)
                     sig = cluster_p_values.reshape(
                         (tfr.shape[1], tfr.shape[2]))
                     mask = sig < threshold
@@ -570,7 +575,7 @@ def plot_2epoch_mosaic(tfr_data, vmin=-25, vmax=25, cmap='RdBu_r',
                 plt.axhline(10, color='k', lw=1, alpha=0.5, linestyle='--')
 
                 plt.axvline(0, color='k', lw=1, zorder=5, alpha=0.5)
-                if epoch == 'stimulus':                    
+                if epoch == 'stimulus':
                     plt.axvline(1, color='k', lw=1, zorder=5, alpha=0.5)
 
             except ValueError as e:
