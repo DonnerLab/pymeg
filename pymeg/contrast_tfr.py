@@ -275,7 +275,6 @@ def compute_contrast(contrasts, hemis, data_globstring, base_globstring,
         baseline_per_condition=baseline_per_condition,
         n_jobs=n_jobs, cache=cache)
 
-
     # Lower case all area names
     # FIXME: Set all area names to lower case!
     all_clusters, _, _, _ = atlas_glasser.get_clusters()
@@ -298,8 +297,8 @@ def compute_contrast(contrasts, hemis, data_globstring, base_globstring,
     for cur_contrast, hemi in product(contrasts.items(), hemis,):
         for cluster in all_clusters.keys():
             contrast, (conditions, weights) = cur_contrast
-            logging.info('Start computing contrast %s for cluster %s' %
-                         (contrast, cluster))
+            logging.info('Start computing contrast %s for cluster %s -> %s' %
+                         (contrast, cluster, hemi))
             right = []
             left = []
             for condition in conditions:
@@ -516,7 +515,7 @@ def plot_2epoch_mosaic(tfr_data, vmin=-25, vmax=25, cmap='RdBu_r',
     nrows = int((len(atlas_glasser.areas) // (ncols / 2)) + 1)
     gs = gridspec.GridSpec(nrows, ncols)
 
-    gs.update(wspace=0.01, hspace=0.05  )
+    gs.update(wspace=0.01, hspace=0.05)
     i = 0
     for (name, area) in atlas_glasser.areas.items():
         for epoch in ['stimulus', 'response']:
@@ -541,7 +540,7 @@ def plot_2epoch_mosaic(tfr_data, vmin=-25, vmax=25, cmap='RdBu_r',
                 xmarker = [0, 1]
                 baseline = None
             try:
-                
+
                 plt.subplot(gs[row, column])
                 print(gs, type(row), type(column))
                 times, freqs, tfr = get_tfr(
@@ -575,7 +574,7 @@ def plot_2epoch_mosaic(tfr_data, vmin=-25, vmax=25, cmap='RdBu_r',
                 plt.axhline(10, color='k', lw=1, alpha=0.5, linestyle='--')
 
                 plt.axvline(0, color='k', lw=1, zorder=5, alpha=0.5)
-                if epoch == 'stimulus':                    
+                if epoch == 'stimulus':
                     plt.axvline(1, color='k', lw=1, zorder=5, alpha=0.5)
 
             except ValueError as e:
@@ -657,30 +656,19 @@ def plot_tfr(df, vmin=-5, vmax=5, cmap='RdBu_r', threshold=0.05):
     return cax, times, freqs, tfr
 
 
-class TFRStats(object):
-    '''
-    Doubly persistent cache for TFR stats.
-    '''
-
-    def __init__(self):
-        self.cache = {}
-
-    def __call__(self, times, freqs, tfr, threshold=0.05):
-        import joblib
-        hash = joblib.hash([times, freqs, tfr, threshold])
-        if hash in self.cache:
-            return self.cache[hash]
-        tfr = get_tfr_stats(times, freqs, tfr, threshold)
-        self.cache[hash] = tfr
-        return tfr
+def par_stats(times, freqs, tfr, threshold=0.05, n_jobs=1):
+    # For multiprocessing
+    return get_tfr_stats(times, freqs, tfr,  threshold=threshold,
+                         n_jobs=n_jobs)
 
 
 @memory.cache()
-def get_tfr_stats(times, freqs, tfr, threshold=0.05):
+def get_tfr_stats(times, freqs, tfr, threshold=0.05, n_jobs=2):
     from mne.stats import permutation_cluster_1samp_test as cluster_test
-    return cluster_test(
+    import joblib
+    return {joblib.hash([times, freqs, tfr, threshold]): cluster_test(
         tfr, threshold={'start': 0, 'step': 0.2},
-        connectivity=None, tail=0, n_permutations=1000, n_jobs=2)
+        connectivity=None, tail=0, n_permutations=1000, n_jobs=n_jobs)}
 
 
 def plot_tfr_stats(times, freqs, tfr, threshold=0.05):
