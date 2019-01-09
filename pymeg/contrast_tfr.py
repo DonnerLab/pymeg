@@ -455,9 +455,16 @@ def plot_mosaic(tfr_data, vmin=-25, vmax=25, cmap='RdBu_r',
             # cax = plt.gca().pcolormesh(times, freqs, np.nanmean(
             #    tfr, 0), vmin=vmin, vmax=vmax, cmap=cmap, zorder=-2)
             mask = None
+
             if stats:
-                _, _, cluster_p_values, _ = get_tfr_stats(
-                    times, freqs, tfr, threshold)
+                import joblib
+                hash = joblib.hash((times, freqs, tfr, threshold))
+                try:
+                    _, _, cluster_p_values, _ = stats[hash]
+                except KeyError:
+                    s = get_tfr_stats(
+                        times, freqs, tfr, threshold)
+                    _, _, cluster_p_values, _ = s[hash]                        
                 sig = cluster_p_values.reshape((tfr.shape[1], tfr.shape[2]))
                 mask = sig < threshold
             cax = pmi(plt.gca(),  np.nanmean(tfr, 0), times, yvals=freqs,
@@ -551,8 +558,14 @@ def plot_2epoch_mosaic(tfr_data, vmin=-25, vmax=25, cmap='RdBu_r',
                 #    tfr, 0), vmin=vmin, vmax=vmax, cmap=cmap, zorder=-2)
                 mask = None
                 if stats:
-                    _, _, cluster_p_values, _ = get_tfr_stats(
-                        times, freqs, tfr, threshold)
+                    import joblib
+                    hash = joblib.hash((times, freqs, tfr, threshold))
+                    try:
+                        _, _, cluster_p_values, _ = stats[hash]
+                    except KeyError:
+                        s = get_tfr_stats(
+                            times, freqs, tfr, threshold)
+                        _, _, cluster_p_values, _ = s[hash]
                     sig = cluster_p_values.reshape(
                         (tfr.shape[1], tfr.shape[2]))
                     mask = sig < threshold
@@ -645,8 +658,13 @@ def plot_2epoch_mosaic(tfr_data, vmin=-25, vmax=25, cmap='RdBu_r',
 def plot_tfr(df, vmin=-5, vmax=5, cmap='RdBu_r', threshold=0.05):
     import pylab as plt
     times, freqs, tfr = get_tfr(df, (-np.inf, np.inf))
-    T_obs, clusters, cluster_p_values, h0 = get_tfr_stats(
-        times, freqs, tfr, 0.05)
+    import joblib
+    hash = joblib.hash((times, freqs, tfr, threshold))
+                    
+    s = get_tfr_stats(
+        times, freqs, tfr, threshold)
+    _, _, cluster_p_values, _ = s[hash]
+
     sig = cluster_p_values.reshape((tfr.shape[1], tfr.shape[2]))
 
     cax = pmi(plt.gca(), tfr.mean(0), times, yvals=freqs,
@@ -669,39 +687,6 @@ def get_tfr_stats(times, freqs, tfr, threshold=0.05, n_jobs=2):
     return {joblib.hash([times, freqs, tfr, threshold]): cluster_test(
         tfr, threshold={'start': 0, 'step': 0.2},
         connectivity=None, tail=0, n_permutations=1000, n_jobs=n_jobs)}
-
-
-def plot_tfr_stats(times, freqs, tfr, threshold=0.05):
-    import pylab as plt
-    from matplotlib.colors import LinearSegmentedColormap
-    T_obs, clusters, cluster_p_values, h0 = get_tfr_stats(
-        times, freqs, tfr, threshold)
-    vmax = 1
-    cmap = LinearSegmentedColormap.from_list('Pvals', [(0 / vmax, (1, 1, 1, 0)),
-                                                       (0.04999 / vmax,
-                                                        (1, 1, 1, 0)),
-                                                       (0.05 / vmax,
-                                                        (1, 1, 1, 0.5)),
-                                                       (1 / vmax, (1, 1, 1, 0.5))]
-                                             )
-    sig = cluster_p_values.reshape((tfr.shape[1], tfr.shape[2]))
-
-    # df = np.array(list(np.diff(freqs) / 2) + [freqs[-1] - freqs[-2]])
-    # dt = np.array(list(np.diff(times) / 2) + [times[-1] - times[-2]])
-    # from scipy.interpolate import interp2d
-    # print(np.unique((sig < threshold).astype(float)))
-    # i = interp2d(times, freqs, sig.astype(float))
-    # X, Y = (np.linspace(times[0], times[-1], len(times) * 25),
-    #        np.linspace(freqs[0], freqs[-1], len(freqs) * 25))
-    # Z = i(X.ravel(), Y.ravel())
-
-    # plt.gca().pcolormesh(times, freqs, sig, vmin=0, vmax=1, cmap=cmap)
-
-    plt.gca().contour(
-        times, freqs,
-        sig, (threshold),
-        linewidths=0.5, colors=('black'))
-    return X, Y, Z
 
 
 def set_title(text, times, freqs, axes):
