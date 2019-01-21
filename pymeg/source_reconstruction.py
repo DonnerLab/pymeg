@@ -138,7 +138,6 @@ def make_bem_model(subject, ico=4, conductivity=(0.3, 0.006, 0.3),
     return surfaces
 
 
-@memory.cache
 def get_labels(subject, filters=['*wang2015atlas*', '*JWDG.lr*'],
                annotations=['HCPMMP1'], sdir=None):
     """Read ROI labels from annotations and label files.
