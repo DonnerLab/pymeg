@@ -212,9 +212,15 @@ def get_clusters():
     }
 
     jwg_clusters = {
-        'JWG_aIPS': ['lh.JWDG.lr_aIPS1-lh', 'rh.JWDG.lr_aIPS1-rh', ],
-        'JWG_IPS_PCeS': ['lh.JWDG.lr_IPS_PCes-lh', 'rh.JWDG.lr_IPS_PCes-rh', ],
-        'JWG_M1': ['lh.JWDG.lr_M1-lh', 'rh.JWDG.lr_M1-rh', ],
+        'JWG_aIPS': ['lh.JWDG.lr_aIPS1-lh', 'rh.JWDG.lr_aIPS1-rh', 
+                        'lh.JWG_lat_aIPS-lh', 'rh.JWG_lat_aIPS-rh',
+                        'lh.JWG_aIPS1-lh', 'rh.JWG_aIPS1-rh', ],
+        'JWG_IPS_PCeS': ['lh.JWDG.lr_IPS_PCes-lh', 'rh.JWDG.lr_IPS_PCes-rh', 
+                        'lh.JWG_lat_IPS_PCeS-lh', 'rh.JWG_lat_IPS_PCeS-rh',
+                        'lh.JWG_IPS_PCeS-lh', 'rh.JWG_IPS_PCeS-rh', ],
+        'JWG_M1': ['lh.JWDG.lr_M1-lh', 'rh.JWDG.lr_M1-rh', 
+                        'lh.JWG_lat_M1-lh', 'rh.JWG_lat_M1-rh',
+                        'lh.JWG_M1-lh', 'rh.JWG_M1-rh', ],
     }
 
     glasser_clusters = {
@@ -246,9 +252,9 @@ def get_clusters():
         ),
         'HCPMMP1_paracentral_midcingulate': (
             ['L_{}_ROI-lh'.format(area) for area in [
-                '24dd', '24dv', '6mp', '6ma', 'SCEF', '5m', '5L', '5mv']] +
+                '24dd', '24dv', '6mp', '6ma', '5m', '5L', '5mv', '33pr', 'p24pr']] +
             ['R_{}_ROI-rh'.format(area) for area in [
-                '24dd', '24dv', '6mp', '6ma', 'SCEF', '5m', '5L', '5mv']]
+                '24dd', '24dv', '6mp', '6ma', '5m', '5L', '5mv', '33pr', 'p24pr']]
         ),
         'HCPMMP1_premotor': (
             ['L_{}_ROI-lh'.format(area) for area in [
@@ -314,17 +320,11 @@ def get_clusters():
         ),
         'HCPMMP1_frontal_orbital_polar': (
             ['L_{}_ROI-lh'.format(area) for area in [
-                '33pr', 'p24pr', 'a24pr', 'p24', 'a24', 'p32pr', 'a32pr', 'd32', 'p32', 's32', '8BM', '9m', '10v', '10r', '25']] +
-            ['R_{}_ROI-rh'.format(area) for area in [
-                '33pr', 'p24pr', 'a24pr', 'p24', 'a24', 'p32pr', 'a32pr', 'd32', 'p32', 's32', '8BM', '9m', '10v', '10r', '25']]
-        ),
-        'HCPMMP1_frontal_inferior': (
-            ['L_{}_ROI-lh'.format(area) for area in [
                 '47s', '47m', 'a47r', '11l', '13l', 'a10p', 'p10p', '10pp', '10d', 'OFC', 'pOFC']] +
             ['R_{}_ROI-rh'.format(area) for area in [
                 '47s', '47m', 'a47r', '11l', '13l', 'a10p', 'p10p', '10pp', '10d', 'OFC', 'pOFC']]
         ),
-        'HCPMMP1_insular_front_opercular': (
+        'HCPMMP1_frontal_inferior': (
             ['L_{}_ROI-lh'.format(area) for area in [
                 '44', '45', 'IFJp', 'IFJa', 'IFSp', 'IFSa', '47l', 'p47r']] +
             ['R_{}_ROI-rh'.format(area) for area in [
@@ -335,6 +335,24 @@ def get_clusters():
                 '8C', '8Av', 'i6-8', 's6-8', 'SFL', '8BL', '9p', '9a', '8Ad', 'p9-46v', 'a9-46v', '46', '9-46d']] +
             ['R_{}_ROI-rh'.format(area) for area in [
                 '8C', '8Av', 'i6-8', 's6-8', 'SFL', '8BL', '9p', '9a', '8Ad', 'p9-46v', 'a9-46v', '46', '9-46d']]
+        ),
+        'HCPMMP1_frontal_post_medial': (
+            ['L_{}_ROI-lh'.format(area) for area in [
+                'SCEF', 'p32pr', 'a24pr', 'a32pr', 'p24']] +
+            ['R_{}_ROI-rh'.format(area) for area in [
+                'SCEF', 'p32pr', 'a24pr', 'a32pr', 'p24']]
+        ),
+        'HCPMMP1_frontal_vent_medial': (
+            ['L_{}_ROI-lh'.format(area) for area in [
+                'p32', 's32', 'a24', '10v', '10r', '25']] +
+            ['R_{}_ROI-rh'.format(area) for area in [
+                'p32', 's32', 'a24', '10v', '10r', '25']]
+        ),
+        'HCPMMP1_frontal_ant_medial': (
+            ['L_{}_ROI-lh'.format(area) for area in [
+                'd32', '8BM', '9m']] +
+            ['R_{}_ROI-rh'.format(area) for area in [
+                'd32', '8BM', '9m']]
         ),
     }
 

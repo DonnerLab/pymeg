@@ -53,11 +53,9 @@ import numpy as np
 
 def aggregate_files(data_globstring, base_globstring, baseline_time,
                     hemis=['Averaged', 'Pair', 'Lateralized'],
-                    cache=None, log10=True, baseline=True):
+                    cache=None, to_decibels=False):
     """Read source reconstructed files, baseline correct and aggregate into
     area clusters.
-
-
 
     Args:
         data_globstring: globstring that selects data files
@@ -69,6 +67,9 @@ def aggregate_files(data_globstring, base_globstring, baseline_time,
                 'Averaged': Mean over hemispheres per area
                 'Pair': Return areas as they are per hemisphere
                 'Lateralized': Subtract left from right hemisphere
+        to_decibels: bool
+            Convert data to decibels - implies subtracting log baseline
+            but no conversion to percent signal change.
     Returns:
         DataFrame that contains time points as columns and is indexed
         by time, frequency and cluster in the row index.
@@ -78,23 +79,26 @@ def aggregate_files(data_globstring, base_globstring, baseline_time,
     if not (data_globstring == base_globstring):
         with Cache() as base_cache:
             tfr_baseline = base_cache.get(base_globstring)
-            if log10:
+            if to_decibels:
                 tfr_baseline = 10 * np.log10(tfr_baseline)
             tfr_baseline = tfr_baseline.groupby(['freq', 'area']).mean()
 
     if cache is None:
         cache = Cache()
     tfr_data = cache.get(data_globstring)
-    if log10:
+    if to_decibels:
         tfr_data = 10 * np.log10(tfr_data)
     if tfr_baseline is None:
         tfr_baseline = tfr_data.groupby(['freq', 'area']).mean()
-    if baseline:
-        baseline = tfr_baseline.loc[:, slice(*baseline_time)].mean(1)
-        baseline.name = 'baseline'
-        cols = tfr_data.columns
-        tfr_data = tfr_data.join(baseline, on=['freq', 'area'])
-        baseline = tfr_data.loc[:, 'baseline']
+
+    baseline = tfr_baseline.loc[:, slice(*baseline_time)].mean(1)
+    baseline.name = 'baseline'
+    cols = tfr_data.columns
+    tfr_data = tfr_data.join(baseline, on=['freq', 'area'])
+    baseline = tfr_data.loc[:, 'baseline']
+    if to_decibels:
+        tfr_data = tfr_data.loc[:, cols].sub(baseline, axis=0)
+    else:
         tfr_data = ((tfr_data.loc[:, cols].sub(
             baseline, axis=0)).div(baseline, axis=0)) * 100
     aggs = aggregate(tfr_data, hemis)
@@ -222,9 +226,9 @@ def aggregate(tfr_data, hemis):
         tfrs_rh = [area for area in all_clusters[cluster] if 'rh' in area]
         tfrs_lh = [area for area in all_clusters[cluster] if 'lh' in area]
         tfrs_rh = [t for t in tfr_areas if any(
-            [t.lower() in a.lower() for a in tfrs_rh])]
+            [a.lower() in t.lower() for a in tfrs_rh])]
         tfrs_lh = [t for t in tfr_areas if any(
-            [t.lower() in a.lower() for a in tfrs_lh])]
+            [a.lower() in t.lower() for a in tfrs_lh])]
         lh_idx = tfr_data.index.isin(tfrs_lh, level='area')
         rh_idx = tfr_data.index.isin(tfrs_rh, level='area')
         left = tfr_data.loc[lh_idx, :].groupby(
