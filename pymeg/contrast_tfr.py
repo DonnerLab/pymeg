@@ -549,7 +549,7 @@ def plot_2epoch_mosaic(tfr_data, vmin=-25, vmax=25, cmap='RdBu_r',
             try:
 
                 plt.subplot(gs[row, column])
-                print(gs, type(row), type(column))
+
                 times, freqs, tfr = get_tfr(
                     tfr_data.query(
                         'cluster=="%s" & epoch=="%s"' % (area, epoch)),
@@ -566,6 +566,7 @@ def plot_2epoch_mosaic(tfr_data, vmin=-25, vmax=25, cmap='RdBu_r',
                         s = get_tfr_stats(
                             times, freqs, tfr, threshold)
                         _, _, cluster_p_values, _ = s[hash]
+
                     sig = cluster_p_values.reshape(
                         (tfr.shape[1], tfr.shape[2]))
                     mask = sig < threshold
