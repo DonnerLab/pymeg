@@ -84,7 +84,6 @@ def slurm_submit(walltime, memory, tmpdir, logdir, script, name,
 #SBATCH --time={walltime}
 #SBATCH --export=NONE
 #SBATCH --mem={memory}GB
-#SBATCH --partition=std
     '''.format(walltime=walltime,
                nodes=nodes,
                memory=memory,
@@ -98,15 +97,9 @@ def slurm_submit(walltime, memory, tmpdir, logdir, script, name,
     sbatch_directives += '''
 #SBATCH --error={logdir}/slurm_%j.out
 #SBATCH --output={logdir}/slurm_%j.err
-source /sw/modules/rrz-modules.sh
     '''.format(logdir=logdir)
 
     environment_variables = '''
-module purge
-module load env
-module load site/hummel
-source ~/.bashrc
-
 {script}
     '''.format(script=script)
     command = sbatch_directives + environment_variables
@@ -119,6 +112,7 @@ source ~/.bashrc
         command,
         stderr=subprocess.STDOUT,
         shell=True)
+    print(output)
     return output
 
 
@@ -142,7 +136,15 @@ from {module} import {function}
 
 def pmap(func, args, cluster='PBS', walltime=12, memory=10, logdir=None, tmpdir=None,
          name=None, nodes=1, tasks=1, verbose=True, env=None, email=None,
-         ssh_to='node028', home=None):
+         ssh_to='node028', home=None, check_store=True, dry_run=False):
+
+    if check_store:
+        try:
+            if func.cached(*args):
+                return '%s -> %s is already in store' % (str(func), str(args))
+        except ValueError:
+            pass
+
     from os.path import expanduser, join
     if type(walltime) == type(int):
         walltime = '%i:00:00'
@@ -161,15 +163,19 @@ def pmap(func, args, cluster='PBS', walltime=12, memory=10, logdir=None, tmpdir=
     out = []
     for arg in args:
         script = 'ipython ' + to_script(func, tmpdir, *arg)
+        pid = script
         if verbose:
             print(arg, '->', script)
         if cluster.upper() == 'PBS':
             node_statement = '%i:ppn=%i' % (nodes, tasks)
-            pid = submit(walltime, memory, logdir, tmpdir,
-                         script, name, env=env, nodes=node_statement)
+            if not dry_run:
+                pid = submit(walltime, memory, logdir, tmpdir,
+                             script, name, env=env, nodes=node_statement)
         elif cluster.upper() == 'SLURM':
-            pid = slurm_submit(walltime, memory, logdir, tmpdir, script, name, env=env,
-                               email=email, nodes=nodes, tasks=tasks)
+            if not dry_run:
+                pid = slurm_submit(walltime, memory, logdir, tmpdir, script,
+                                   name, env=env, email=email,
+                                   nodes=nodes, tasks=tasks)
         out.append(pid)
     return out
 
