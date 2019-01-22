@@ -261,7 +261,7 @@ def get_trans_epoch(raw_filename, epoch_filename):
     return save_file
 
 
-def make_trans(subject, raw_filename, epoch_filename, trans_name):
+def make_trans(subject, raw_filename, epoch_filename, trans_name, sdir=None):
     """Create coregistration between MRI and MEG space.
 
     Call MNE gui to create a MEG<>MRI transformation matrix
@@ -269,19 +269,20 @@ def make_trans(subject, raw_filename, epoch_filename, trans_name):
     import os
     import time
     fid_epochs = get_trans_epoch(raw_filename, epoch_filename)
-    cmd = 'mne coreg --high-res-head -d %s -s %s -f %s' % (
-        subjects_dir, subject, fid_epochs)
-    print(cmd)
-    os.system(cmd)
-    mne.gui.coregistration(subject, inst=hs_ref.name,
-                           subjects_dir=subjects_dir)
+    # cmd = 'mne coreg --high-res-head -d %s -s %s -f %s' % (
+    #    subjects_dir, subject, fid_epochs)
+    # print(cmd)
+    # os.system(cmd)
+    if sdir is None:
+        sdir = subjects_dir
+    mne.gui.coregistration(subject, inst=fid_epochs,
+                           subjects_dir=sdir)
     print('--------------------------------')
     print('Please save trans file as:')
     print(trans_name)
     while not os.path.isfile(trans_name):
         #print('Waiting for transformation matrix to appear')
         time.sleep(5)
-
 
 
 @memory.cache
@@ -539,4 +540,3 @@ def add_volume_info(subject, surface, subjects_dir, volume='T1'):
     if 'head' not in volume_info.keys():
         volume_info['head'] = np.array([2,  0, 20], dtype=np.int32)
     write_surface(surface, rr, tris, volume_info=volume_info)
-
