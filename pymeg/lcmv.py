@@ -393,7 +393,8 @@ def get_filter(info, forward, data_cov, noise_cov, label=None, reg=0.05,
     filter['sign_flip_vector'] = label_sign_flip(label, forward['src'])
     del filter['data_cov']
     del filter['noise_cov']
-    del filter['src']
+    if 'src' in filter:
+        del filter['src']
     return label.name, filter
 
 
