@@ -229,7 +229,8 @@ def pool_conditions(conditions, data_globs, base_globs, meta_data,
 @memory.cache(ignore=['cache'])
 def compute_contrast(contrasts, hemis, data_globstring, base_globstring,
                      meta_data, baseline_time, baseline_per_condition=True,
-                     n_jobs=1, cache=Cache(cache=False)):
+                     n_jobs=1, cache=Cache(cache=False),
+                     all_clusters=None):
     """Compute a single contrast from tfr data
     Args:
         contrast: dict
@@ -256,6 +257,8 @@ def compute_contrast(contrasts, hemis, data_globstring, base_globstring,
         meta_data: data frame
             Meta data DataFrame with as many rows as trials.
         baseline_time: tuple
+        all_clusters : dict with cluster definitions, default None
+            If None it is loaded from atlas_glasser get_contrasts
 
     """
     from itertools import product
@@ -277,7 +280,8 @@ def compute_contrast(contrasts, hemis, data_globstring, base_globstring,
 
     # Lower case all area names
     # FIXME: Set all area names to lower case!
-    all_clusters, _, _, _ = atlas_glasser.get_clusters()
+    if all_clusters is None:
+        all_clusters, _, _, _ = atlas_glasser.get_clusters()
     tfr_areas = np.array([a for a in tfr_condition.index.levels[
         np.where(np.array(tfr_condition.index.names) == 'area')[0][0]]])
     tfr_areas_lower = np.array([area.lower() for area in tfr_areas])

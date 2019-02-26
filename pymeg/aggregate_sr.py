@@ -53,7 +53,8 @@ import numpy as np
 
 def aggregate_files(data_globstring, base_globstring, baseline_time,
                     hemis=['Averaged', 'Pair', 'Lateralized'],
-                    cache=None, to_decibels=False):
+                    cache=None, to_decibels=False,
+                    all_clusters=None):
     """Read source reconstructed files, baseline correct and aggregate into
     area clusters.
 
@@ -70,6 +71,11 @@ def aggregate_files(data_globstring, base_globstring, baseline_time,
         to_decibels: bool
             Convert data to decibels - implies subtracting log baseline
             but no conversion to percent signal change.
+        all_clusters: dict
+            See atlas_glasser.get_cluster() for example. 
+            Cluster definitions, if None atlas_glasser.get_cluster()
+            will be used.
+
     Returns:
         DataFrame that contains time points as columns and is indexed
         by time, frequency and cluster in the row index.
@@ -101,7 +107,7 @@ def aggregate_files(data_globstring, base_globstring, baseline_time,
     else:
         tfr_data = ((tfr_data.loc[:, cols].sub(
             baseline, axis=0)).div(baseline, axis=0)) * 100
-    aggs = aggregate(tfr_data, hemis)
+    aggs = aggregate(tfr_data, hemis, all_clusters=all_clusters)
     return aggs
 
 
@@ -213,12 +219,13 @@ def get_df_from_hdf(dataset):
     return pd.DataFrame(dataset[:], index=index, columns=cols)
 
 
-def aggregate(tfr_data, hemis):
+def aggregate(tfr_data, hemis, all_clusters=None):
     """Aggregate individual areas into clusters.
     """
     from itertools import product
     from pymeg import atlas_glasser
-    all_clusters, _, _, _ = atlas_glasser.get_clusters()
+    if all_clusters is None:
+        all_clusters, _, _, _ = atlas_glasser.get_clusters()
     clusters = []
     tfr_areas = np.unique(tfr_data.index.get_level_values('area'))
     for hemi, cluster in product(hemis, all_clusters.keys()):
