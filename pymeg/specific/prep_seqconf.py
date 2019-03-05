@@ -68,8 +68,8 @@ def to_blocks(timing, sfreq=1200., min_dur=8, max_dur=12):
     blocks = {block: Block(timing.iloc[start + 1], timing.iloc[end],
                            start + 1, end) for block, (start, end)
               in enumerate(zip(bounds[:-1], bounds[1:]))}
-    for start, end in blocks.values():
-        dur = (onsets[end] - onsets[start])
+    for block in blocks.values():
+        dur = (onsets[block.end_trial] - onsets[block.start_trial])
         assert(min_dur < dur)
         assert(dur < max_dur)
     return blocks
@@ -90,13 +90,13 @@ def preprocess_raw(subject, recording, filename):
 
     meta, timing = get_meta(raw, mapping, {}, 41, 41)
 
-    blocks = to_blocks(timing.coherence_on)
+    blocks = to_blocks(timing.coherence_on_time)
 
     min_start, max_end = np.min(raw.times), np.max(raw.times)
 
-    for i, block in blocks.values():
+    for i, block in blocks.items():
         # Cut into blocks
-        start, end = raw.times[block.start], raw.times[block.end]
+        start, end = raw.times[int(block.start)], raw.times[int(block.end)]
         start = np.maximum(start, min_start)
         end = np.minimum(end, max_end)
         r = raw.copy().crop(start, end)
@@ -106,6 +106,7 @@ def preprocess_raw(subject, recording, filename):
 
         print('Notch filtering')
         midx = np.where([x.startswith('M') for x in r.ch_names])[0]
+        r.load_data()
         r.notch_filter(np.arange(50, 251, 50), picks=midx)
 
         block_meta = meta.loc[block.start_trial:block.end_trial + 1, :]

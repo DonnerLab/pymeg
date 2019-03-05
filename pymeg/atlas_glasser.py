@@ -336,19 +336,19 @@ def get_clusters():
             ['R_{}_ROI-rh'.format(area) for area in [
                 '8C', '8Av', 'i6-8', 's6-8', 'SFL', '8BL', '9p', '9a', '8Ad', 'p9-46v', 'a9-46v', '46', '9-46d']]
         ),
-        'HCPMMP1_frontal_post_medial': (
+        'post_medial_frontal': (
             ['L_{}_ROI-lh'.format(area) for area in [
                 'SCEF', 'p32pr', 'a24pr', 'a32pr', 'p24']] +
             ['R_{}_ROI-rh'.format(area) for area in [
                 'SCEF', 'p32pr', 'a24pr', 'a32pr', 'p24']]
         ),
-        'HCPMMP1_frontal_vent_medial': (
+        'vent_medial_frontal': (
             ['L_{}_ROI-lh'.format(area) for area in [
                 'p32', 's32', 'a24', '10v', '10r', '25']] +
             ['R_{}_ROI-rh'.format(area) for area in [
                 'p32', 's32', 'a24', '10v', '10r', '25']]
         ),
-        'HCPMMP1_frontal_ant_medial': (
+        'ant_medial_frontal': (
             ['L_{}_ROI-lh'.format(area) for area in [
                 'd32', '8BM', '9m']] +
             ['R_{}_ROI-rh'.format(area) for area in [
@@ -477,8 +477,11 @@ areas['Intraparietal / postcentral sulcus'] = 'JWG_IPS_PCeS'
 areas['Motor cortex (hand area)'] = 'JWG_M1'
 
 areas['Posterior cingulate'] = 'HCPMMP1_cingulate_pos'
-areas['Anterior cingulate'] = 'HCPMMP1_insular_front_opercular'
 areas['Paracentral / midcingulate'] = 'HCPMMP1_paracentral_midcingulate'
+areas['Insula'] = 'HCPMMP1_insular_front_opercular'
+areas['Posterior medial frontal'] = 'post_medial_frontal'
+areas['Anterior medial frontal'] = 'ant_medial_frontal'
+areas['Ventromedial frontal'] = 'vent_medial_frontal'
 areas['Premotor'] = 'HCPMMP1_premotor'
 areas['Dorsolateral prefrontal'] = 'HCPMMP1_dlpfc'
 areas['Ventrolateral prefrontal'] = 'HCPMMP1_frontal_inferior'

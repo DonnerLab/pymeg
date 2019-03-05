@@ -10,8 +10,8 @@ from pymeg import atlas_glasser
 
 memory = Memory(cachedir=os.environ['PYMEG_CACHE_DIR'], verbose=0)
 
-# backend = 'loky'
-backend = 'multiprocessing'
+backend = 'loky'
+# backend = 'multiprocessing'
 
 
 class Cache(object):
@@ -117,6 +117,9 @@ def load_tfr_contrast(data_globstring, base_globstring, meta_data, conditions,
 
     tfr_conditions = Parallel(n_jobs=n_jobs, verbose=1, backend=backend)(
         delayed(make_tfr_contrasts)(*task) for task in tasks)
+    # for task in tasks:
+    #     make_tfr_contrasts(*task)
+
     weight_dicts = [t[1] for t in tfr_conditions]
     weights = weight_dicts.pop()
     [weights.update(w) for w in weight_dicts]
@@ -150,9 +153,13 @@ def make_tfr_contrasts(tfr_data, tfr_data_to_baseline, meta_data,
         return None, {condition: num_trials_in_condition}
     tfr_data_condition = tfr_data_condition.groupby(['freq', 'area']).mean()
 
-    # apply baseline, and collapse across sensors:
-    tfr_data_condition = baseline_per_sensor_apply(
-        tfr_data_condition, baseline=baseline).groupby(['freq', 'area']).mean()
+    #FIXME takes ages!!! # apply baseline, and collapse across sensors:
+    # tfr_data_condition = baseline_per_sensor_apply(
+    #     tfr_data_condition, baseline=baseline).groupby(['freq', 'area']).mean()
+    X = np.array(tfr_data_condition)
+    b = np.atleast_2d(np.array(baseline)).T
+    y = (X - b) / b * 100
+    tfr_data_condition.loc[:,:] = y
 
     tfr_data_condition['condition'] = condition
     tfr_data_condition = tfr_data_condition.set_index(
@@ -194,8 +201,8 @@ def pool_conditions(conditions, data_globs, base_globs, meta_data,
             baseline_per_condition=baseline_per_condition,
             cache=cache)
         tfrs[i] = tfr
-        weights[i] = weight
-        # Compute total trials per condition
+        weights[i] = weight    
+    # Compute total trials per condition
     total_weights = {}
     for i, w in weights.items():
         for k, v in w.items():
@@ -229,7 +236,8 @@ def pool_conditions(conditions, data_globs, base_globs, meta_data,
 @memory.cache(ignore=['cache'])
 def compute_contrast(contrasts, hemis, data_globstring, base_globstring,
                      meta_data, baseline_time, baseline_per_condition=True,
-                     n_jobs=1, cache=Cache(cache=False)):
+                     n_jobs=1, cache=Cache(cache=False),
+                     all_clusters=None):
     """Compute a single contrast from tfr data
     Args:
         contrast: dict
@@ -256,6 +264,8 @@ def compute_contrast(contrasts, hemis, data_globstring, base_globstring,
         meta_data: data frame
             Meta data DataFrame with as many rows as trials.
         baseline_time: tuple
+        all_clusters : dict with cluster definitions, default None
+            If None it is loaded from atlas_glasser get_contrasts
 
     """
     from itertools import product
@@ -266,6 +276,7 @@ def compute_contrast(contrasts, hemis, data_globstring, base_globstring,
     conditions = set(
         reduce(lambda x, y: x + y, [x[0] for x in contrasts.values()]))
 
+    print('computing mean tfr for all areas and conditions...')
     tfr_condition = pool_conditions(
         conditions=conditions,
         data_globs=data_globstring,
@@ -275,9 +286,11 @@ def compute_contrast(contrasts, hemis, data_globstring, base_globstring,
         baseline_per_condition=baseline_per_condition,
         n_jobs=n_jobs, cache=cache)
 
+    print('computing contrasts for all clusters...')
     # Lower case all area names
     # FIXME: Set all area names to lower case!
-    all_clusters, _, _, _ = atlas_glasser.get_clusters()
+    if all_clusters is None:
+        all_clusters, _, _, _ = atlas_glasser.get_clusters()
     tfr_areas = np.array([a for a in tfr_condition.index.levels[
         np.where(np.array(tfr_condition.index.names) == 'area')[0][0]]])
     tfr_areas_lower = np.array([area.lower() for area in tfr_areas])
@@ -294,8 +307,11 @@ def compute_contrast(contrasts, hemis, data_globstring, base_globstring,
     cluster_contrasts = []
     # for cur_contrast, hemi, cluster in product(contrasts.items(), hemis,
     #                                            all_clusters.keys()):
-    for cur_contrast, hemi in product(contrasts.items(), hemis,):
+    # for cur_contrast, hemi in product(contrasts.items(), hemis,):
+    for cur_contrast, hemi in zip(contrasts.items(), hemis,):
+        print(cur_contrast)
         for cluster in all_clusters.keys():
+            print(cluster)
             contrast, (conditions, weights) = cur_contrast
             logging.info('Start computing contrast %s for cluster %s -> %s' %
                          (contrast, cluster, hemi))
@@ -354,6 +370,8 @@ def compute_contrast(contrasts, hemis, data_globstring, base_globstring,
             tfrs = [tfr * weight for tfr, weight in zip(tfrs, weights)]
             tfrs = reduce(lambda x, y: x + y, tfrs)
             tfrs = tfrs.groupby('freq').mean()
+            if tfrs.shape[0] == 0:
+                continue
             tfrs.loc[:, 'cluster'] = cluster
             tfrs.loc[:, 'contrast'] = contrast
             tfrs.loc[:, 'hemi'] = hemi
