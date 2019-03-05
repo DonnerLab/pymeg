@@ -408,10 +408,10 @@ def set_jw_style():
 
 
 def pmi(*args, **kwargs):
-    from mne.viz.utils import _plot_masked_image as pmi
+    #from mne.viz.utils import _plot_masked_image as pmi
     import mne
     level = mne.set_log_level('ERROR', return_old_level=True)
-    cax = pmi(*args, **kwargs)
+    cax = _plot_masked_image(*args, **kwargs)
     mne.set_log_level(level)
     return cax
 
@@ -773,3 +773,54 @@ def ensure_iter(input):
                 yield item
         except TypeError:
             yield input
+
+
+def _plot_masked_image(ax, data, times, mask=None, yvals=None,
+                       cmap="RdBu_r", vmin=None, vmax=None, ylim=None,
+                       mask_style="both", mask_alpha=.25, mask_cmap="Greys",
+                       **kwargs):
+
+    from matplotlib import ticker
+
+    if yvals is None:  # for e.g. Evoked images
+        yvals = np.arange(data.shape[0])
+    ratio = yvals[1:] / yvals[:-1]
+    # compute bounds between time samples
+    time_diff = np.diff(times) / 2. if len(times) > 1 else [0.0005]
+    time_lims = np.concatenate([[times[0] - time_diff[0]], times[:-1] +
+                                time_diff, [times[-1] + time_diff[-1]]])
+
+    log_yvals = np.concatenate([[yvals[0] / ratio[0]], yvals,
+                                [yvals[-1] * ratio[0]]])
+    yval_lims = np.sqrt(log_yvals[:-1] * log_yvals[1:])
+
+    # construct a time-yvaluency bounds grid
+    time_mesh, yval_mesh = np.meshgrid(time_lims, yval_lims)
+
+    if mask is not None:
+        im = ax.pcolormesh(time_mesh, yval_mesh, data, cmap=cmap,
+                           vmin=vmin, vmax=vmax)
+        big_mask = np.kron(mask, np.ones((10, 10)))
+        big_times = np.kron(times, np.ones((10, )))
+        big_yvals = np.kron(yvals, np.ones((10, )))
+        print(big_mask.shape)
+        ax.contour(big_times, big_yvals, big_mask, colors=["k"],
+                   linewidths=[.75], corner_mask=False,
+                   antialiased=False, levels=[.5])
+    else:
+        im = ax.pcolormesh(time_mesh, yval_mesh, data, cmap=cmap,
+                           vmin=vmin, vmax=vmax)
+    if ylim is None:
+        ylim = yval_lims[[0, -1]]
+
+    ax.yaxis.set_minor_formatter(ticker.NullFormatter())
+    # get rid of minor ticks
+    ax.yaxis.set_minor_locator(ticker.NullLocator())
+    tick_vals = yvals[np.unique(np.linspace(
+        0, len(yvals) - 1, 12).round().astype('int'))]
+    ax.set_yticks(tick_vals)
+
+    ax.set_xlim(time_lims[0], time_lims[-1])
+    ax.set_ylim(ylim)
+
+    return im
