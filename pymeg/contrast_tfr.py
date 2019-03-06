@@ -424,10 +424,10 @@ def set_jw_style():
 
 
 def pmi(*args, **kwargs):
-    from mne.viz.utils import _plot_masked_image as pmi
+    #from mne.viz.utils import _plot_masked_image as pmi
     import mne
     level = mne.set_log_level('ERROR', return_old_level=True)
-    cax = pmi(*args, **kwargs)
+    cax = _plot_masked_image(*args, **kwargs)
     mne.set_log_level(level)
     return cax
 
@@ -474,16 +474,16 @@ def plot_mosaic(tfr_data, vmin=-25, vmax=25, cmap='RdBu_r',
 
             if stats:
                 import joblib
-                hash = joblib.hash((times, freqs, tfr, threshold))
+                hash = joblib.hash([times, freqs, tfr, threshold])
                 try:
                     _, _, cluster_p_values, _ = stats[hash]
                 except KeyError:
                     s = get_tfr_stats(
                         times, freqs, tfr, threshold)
-                    _, _, cluster_p_values, _ = s[hash]                        
+                    _, _, cluster_p_values, _ = s[hash]
                 sig = cluster_p_values.reshape((tfr.shape[1], tfr.shape[2]))
                 mask = sig < threshold
-            cax = pmi(plt.gca(),  np.nanmean(tfr, 0), times, yvals=freqs,
+            cax = pmi(plt.gca(), np.nanmean(tfr, 0), times, yvals=freqs,
                       yscale='linear', vmin=vmin, vmax=vmax,
                       mask=mask, mask_alpha=1,
                       mask_cmap=cmap, cmap=cmap)
@@ -506,7 +506,7 @@ def plot_mosaic(tfr_data, vmin=-25, vmax=25, cmap='RdBu_r',
     sns.despine(left=True, bottom=True)
     plt.subplot(gs[nrows - 1, 0])
 
-    pmi(plt.gca(),  np.nanmean(tfr, 0) * 0, times, yvals=freqs,
+    pmi(plt.gca(), np.nanmean(tfr, 0) * 0, times, yvals=freqs,
         yscale='linear', vmin=vmin, vmax=vmax,
         mask=None, mask_alpha=1,
         mask_cmap=cmap, cmap=cmap)
@@ -525,95 +525,90 @@ def plot_mosaic(tfr_data, vmin=-25, vmax=25, cmap='RdBu_r',
     sns.despine(ax=plt.gca())
 
 
-def plot_2epoch_mosaic(tfr_data, vmin=-25, vmax=25, cmap='RdBu_r',
-                       ncols=4, stats=False,
-                       threshold=0.05):
+def plot_epoch_pair(tfr_data, vmin=-25, vmax=25, cmap='RdBu_r', gs=None,
+                    stats=False, threshold=0.05):
+    from matplotlib import gridspec
+    import pylab as plt
+    import joblib
 
+    if gs is None:
+        g = gridspec.GridSpec(1, 2)
+    else:
+        g = gridspec.GridSpecFromSubplotSpec(1, 2,
+                                             subplot_spec=gs,
+                                             wspace=0.01)
+    times, freq, tfr = None, None, None
+    for epoch in ['stimulus', 'response']:
+        row = 0
+        if epoch == "stimulus":
+            col = 0
+            time_cutoff = (-0.5, 1.35)
+            xticks = [0, 0.25, 0.5, 0.75, 1]
+            yticks = [25, 50, 75, 100, 125]
+            xmarker = [0, 1]
+        else:
+            col = 1
+            time_cutoff = (-1, .5)
+            xticks = [-1, -0.75, -0.5, -0.25, 0, 0.25, 0.5]
+            yticks = [1, 25, 50, 75, 100, 125]
+            xmarker = [0, 1]
+
+        plt.subplot(g[row, col])
+
+        times, freqs, tfr = get_tfr(
+            tfr_data.query(
+                'epoch=="%s"' % (epoch)),
+            time_cutoff)
+
+        mask = None
+        if stats:
+            hash = joblib.hash([times, freqs, tfr, threshold])
+            try:
+                _, _, cluster_p_values, _ = stats[hash]
+            except KeyError:
+                s = get_tfr_stats(
+                    times, freqs, tfr, threshold)
+                _, _, cluster_p_values, _ = s[hash]
+
+            sig = cluster_p_values.reshape(
+                (tfr.shape[1], tfr.shape[2]))
+            mask = sig < threshold
+
+        _ = pmi(plt.gca(), np.nanmean(tfr, 0), times, yvals=freqs,
+                yscale='linear', vmin=vmin, vmax=vmax,
+                mask=mask, mask_alpha=1,
+                mask_cmap=cmap, cmap=cmap)
+
+        for xmark in xmarker:
+            plt.axvline(xmark, color='k', lw=1, zorder=-1, alpha=0.5)
+
+        plt.yticks(yticks, [''] * len(yticks))
+        plt.xticks(xticks, [''] * len(xticks))
+
+        plt.tick_params(direction='inout', length=2, zorder=100)
+        plt.xlim(time_cutoff)
+        plt.ylim([1, 147.5])
+        #plt.axhline(10, color='k', lw=1, alpha=0.5, linestyle='--')
+        plt.axhline(25, color='k', lw=1, alpha=0.5, linestyle=':')
+        plt.axhline(50, color='k', lw=1, alpha=0.5, linestyle=':')
+        plt.axvline(0, color='k', lw=1, zorder=5, alpha=0.5)
+        if epoch == 'stimulus':
+            plt.axvline(1, color='k', lw=1, zorder=5, alpha=0.5)
+    return times, freqs, tfr
+
+
+def plot_2epoch_pict(times, freqs, tfr, gs=None, vmin=-25, vmax=25,
+                     cmap='RdBu_r'):
+    import matplotlib as mpl
     from matplotlib import gridspec
     import pylab as plt
     import seaborn as sns
-    ncols *= 2
-    set_jw_style()
-    sns.set_style('ticks')
-    nrows = int((len(atlas_glasser.areas) // (ncols / 2)) + 1)
-    gs = gridspec.GridSpec(nrows, ncols)
-
-    gs.update(wspace=0.01, hspace=0.05)
-    i = 0
-    for (name, area) in atlas_glasser.areas.items():
-        for epoch in ['stimulus', 'response']:
-            column = int(np.mod(i, ncols))
-            row = int(i // ncols)
-
-            if epoch == "stimulus":
-                time_cutoff = (-0.5, 1.35)
-                xticks = [0, 0.25, 0.5, 0.75, 1]
-                xticklabels = ['0\nStim on', '', '.5', '', '1\nStim off']
-                yticks = [25, 50, 75, 100, 125]
-                yticklabels = ['25', '', '75', '', '125']
-                xmarker = [0, 1]
-                baseline = (-0.25, 0)
-            else:
-                time_cutoff = (-1, .5)
-                xticks = [-1, -0.75, -0.5, -0.25, 0, 0.25, 0.5]
-                xticklabels = ['-1', '', '-0.5',
-                               '', '0\nResponse', '', '0.5']
-                yticks = [1, 25, 50, 75, 100, 125]
-                yticklabels = ['1', '25', '', '75', '', '125']
-                xmarker = [0, 1]
-                baseline = None
-            try:
-
-                plt.subplot(gs[row, column])
-
-                times, freqs, tfr = get_tfr(
-                    tfr_data.query(
-                        'cluster=="%s" & epoch=="%s"' % (area, epoch)),
-                    time_cutoff)
-                # cax = plt.gca().pcolormesh(times, freqs, np.nanmean(
-                #    tfr, 0), vmin=vmin, vmax=vmax, cmap=cmap, zorder=-2)
-                mask = None
-                if stats:
-                    import joblib
-                    hash = joblib.hash((times, freqs, tfr, threshold))
-                    try:
-                        _, _, cluster_p_values, _ = stats[hash]
-                    except KeyError:
-                        s = get_tfr_stats(
-                            times, freqs, tfr, threshold)
-                        _, _, cluster_p_values, _ = s[hash]
-
-                    sig = cluster_p_values.reshape(
-                        (tfr.shape[1], tfr.shape[2]))
-                    mask = sig < threshold
-                cax = pmi(plt.gca(),  np.nanmean(tfr, 0), times, yvals=freqs,
-                          yscale='linear', vmin=vmin, vmax=vmax,
-                          mask=mask, mask_alpha=1,
-                          mask_cmap=cmap, cmap=cmap)
-
-                # plt.grid(True, alpha=0.5)
-                for xmark in xmarker:
-                    plt.axvline(xmark, color='k', lw=1, zorder=-1, alpha=0.5)
-
-                plt.yticks(yticks, [''] * len(yticks))
-                plt.xticks(xticks, [''] * len(xticks))
-
-                plt.tick_params(direction='inout', length=2, zorder=100)
-                plt.xlim(time_cutoff)
-                plt.ylim([1, 147.5])
-                plt.axhline(10, color='k', lw=1, alpha=0.5, linestyle='--')
-
-                plt.axvline(0, color='k', lw=1, zorder=5, alpha=0.5)
-                if epoch == 'stimulus':
-                    plt.axvline(1, color='k', lw=1, zorder=5, alpha=0.5)
-
-            except ValueError as e:
-                print(name, area, e)
-            i += 1
-
-            if epoch == 'response':
-                set_title(name, times[0], freqs, plt.gca())
-    sns.despine(left=True, bottom=True)
+    if gs is None:
+        g = gridspec.GridSpec(1, 2)
+    else:
+        g = gridspec.GridSpecFromSubplotSpec(1, 2,
+                                             subplot_spec=gs,
+                                             wspace=0.01)
 
     epoch = "stimulus"
     time_cutoff = (-0.5, 1.35)
@@ -624,8 +619,8 @@ def plot_2epoch_mosaic(tfr_data, vmin=-25, vmax=25, cmap='RdBu_r',
     xmarker = [0, 1]
     baseline = (-0.25, 0)
     sns.despine(left=True, bottom=True)
-    plt.subplot(gs[nrows - 1, 0])
-    pmi(plt.gca(),  np.nanmean(tfr, 0) * 0, times, yvals=freqs,
+    plt.subplot(g[0, 0])
+    pmi(plt.gca(), np.nanmean(tfr, 0) * 0, times, yvals=freqs,
         yscale='linear', vmin=vmin, vmax=vmax,
         mask=None, mask_alpha=1,
         mask_cmap=cmap, cmap=cmap)
@@ -652,11 +647,12 @@ def plot_2epoch_mosaic(tfr_data, vmin=-25, vmax=25, cmap='RdBu_r',
     xmarker = [0, 1]
     baseline = None
 
-    plt.subplot(gs[nrows - 1, 1])
-    pmi(plt.gca(),  np.nanmean(tfr, 0) * 0, times, yvals=freqs,
+    plt.subplot(g[0, 1])
+    pmi(plt.gca(), np.nanmean(tfr, 0) * 0, times, yvals=freqs,
         yscale='linear', vmin=vmin, vmax=vmax,
         mask=None, mask_alpha=1,
         mask_cmap=cmap, cmap=cmap)
+
     plt.xticks(xticks, xticklabels)
     plt.yticks(yticks, [])
     for xmark in xmarker:
@@ -669,15 +665,53 @@ def plot_2epoch_mosaic(tfr_data, vmin=-25, vmax=25, cmap='RdBu_r',
     plt.ylim([1, 147.5])
     plt.xlabel('time [s]')
     plt.ylabel('')
+
+
+def plot_2epoch_mosaic(tfr_data, vmin=-25, vmax=25, cmap='RdBu_r',
+                       ncols=4, stats=False,
+                       threshold=0.05):
+
+    from matplotlib import gridspec
+    import pylab as plt
+    import seaborn as sns
+    #ncols *= 2
+    set_jw_style()
+    sns.set_style('ticks')
+    nrows = int((len(atlas_glasser.areas) // (ncols)) + 1)
+    gs = gridspec.GridSpec(nrows, ncols)
+    # gs.update(wspace=0.001)#, hspace=0.05)
+    i = 0
+    for (name, area) in atlas_glasser.areas.items():
+        col = int(np.mod(i, ncols))
+        row = int(i // ncols)
+        times, freqs, tfr = plot_epoch_pair(tfr_data.query('cluster=="%s"' % area),
+                                            vmin=-25, vmax=25, cmap=cmap,
+                                            gs=gs[row, col], stats=stats)
+        set_title(name, times, freqs, gs[row, col])
+        i += 1
+
+    plot_2epoch_pict(times, freqs, tfr, gs=gs[nrows - 1, 0])
+    import matplotlib as mpl
+    cmap = mpl.cm.get_cmap(cmap)
+    norm = mpl.colors.Normalize(vmin=vmin, vmax=vmax)
     sns.despine(left=True, bottom=True)
+    g = gridspec.GridSpecFromSubplotSpec(1, 15,
+                                         subplot_spec=gs[nrows - 1, 1],
+                                         wspace=0.01)
+    plt.subplot(g[0, 1])
+    cb1 = mpl.colorbar.ColorbarBase(plt.gca(),
+                                    cmap=cmap,
+                                    norm=norm)
+    # cb1.yaxis.set_ticks_position('right')
+    #sns.despine(left=True, bottom=True)
 
 
 def plot_tfr(df, vmin=-5, vmax=5, cmap='RdBu_r', threshold=0.05):
     import pylab as plt
     times, freqs, tfr = get_tfr(df, (-np.inf, np.inf))
     import joblib
-    hash = joblib.hash((times, freqs, tfr, threshold))
-                    
+    hash = joblib.hash([times, freqs, tfr, threshold])
+
     s = get_tfr_stats(
         times, freqs, tfr, threshold)
     _, _, cluster_p_values, _ = s[hash]
@@ -693,7 +727,7 @@ def plot_tfr(df, vmin=-5, vmax=5, cmap='RdBu_r', threshold=0.05):
 
 def par_stats(times, freqs, tfr, threshold=0.05, n_jobs=1):
     # For multiprocessing
-    return get_tfr_stats(times, freqs, tfr,  threshold=threshold,
+    return get_tfr_stats(times, freqs, tfr, threshold=threshold,
                          n_jobs=n_jobs)
 
 
@@ -708,8 +742,8 @@ def get_tfr_stats(times, freqs, tfr, threshold=0.05, n_jobs=2):
 
 def set_title(text, times, freqs, axes):
     import pylab as plt
-    x = np.mean(times)
-    y = np.max(freqs)
+    x = np.min(times)
+    y = np.max(freqs) + 20
     plt.text(x, y, text, fontsize=8,
              verticalalignment='top', horizontalalignment='center')
 
@@ -740,7 +774,27 @@ def plot_cluster(names, view):
     plot_roi('lh', label_names, 'r')
 
 
+def plot_rois(labels, clusters, view='lat',
+              fs_dir=os.environ['SUBJECTS_DIR'],
+              subject_id='S04', surf='inflated'):
+    hemi = 'lh'
+    from surfer import Brain
+    import seaborn as sns
+    colors = sns.color_palette("husl", len(clusters))
+    brain = Brain(subject_id, hemi, surf, offscreen=False)
+    for color, cluster in zip(colors, clusters):
+        for label in labels[cluster]:
+
+            if 'rh' in label.name:
+                continue
+            #print(cluster, label)
+            brain.add_label(label, color=color)
+    brain.show_view(view)
+    return brain, brain.screenshot()
+
 #@memory.cache
+
+
 def plot_roi(hemi, labels, color, annotation='HCPMMP1',
              view='parietal',
              fs_dir=os.environ['SUBJECTS_DIR'],
@@ -789,3 +843,54 @@ def ensure_iter(input):
                 yield item
         except TypeError:
             yield input
+
+
+def _plot_masked_image(ax, data, times, mask=None, yvals=None,
+                       cmap="RdBu_r", vmin=None, vmax=None, ylim=None,
+                       mask_style="both", mask_alpha=.25, mask_cmap="Greys",
+                       **kwargs):
+
+    from matplotlib import ticker
+
+    if yvals is None:  # for e.g. Evoked images
+        yvals = np.arange(data.shape[0])
+    ratio = yvals[1:] / yvals[:-1]
+    # compute bounds between time samples
+    time_diff = np.diff(times) / 2. if len(times) > 1 else [0.0005]
+    time_lims = np.concatenate([[times[0] - time_diff[0]], times[:-1] +
+                                time_diff, [times[-1] + time_diff[-1]]])
+
+    log_yvals = np.concatenate([[yvals[0] / ratio[0]], yvals,
+                                [yvals[-1] * ratio[0]]])
+    yval_lims = np.sqrt(log_yvals[:-1] * log_yvals[1:])
+
+    # construct a time-yvaluency bounds grid
+    time_mesh, yval_mesh = np.meshgrid(time_lims, yval_lims)
+
+    if mask is not None:
+        im = ax.pcolormesh(time_mesh, yval_mesh, data, cmap=cmap,
+                           vmin=vmin, vmax=vmax)
+        big_mask = np.kron(mask, np.ones((10, 10)))
+        big_times = np.kron(times, np.ones((10, )))
+        big_yvals = np.kron(yvals, np.ones((10, )))
+        print(big_mask.shape)
+        ax.contour(big_times, big_yvals, big_mask, colors=["k"],
+                   linewidths=[.75], corner_mask=False,
+                   antialiased=False, levels=[.5])
+    else:
+        im = ax.pcolormesh(time_mesh, yval_mesh, data, cmap=cmap,
+                           vmin=vmin, vmax=vmax)
+    if ylim is None:
+        ylim = yval_lims[[0, -1]]
+
+    ax.yaxis.set_minor_formatter(ticker.NullFormatter())
+    # get rid of minor ticks
+    ax.yaxis.set_minor_locator(ticker.NullLocator())
+    tick_vals = yvals[np.unique(np.linspace(
+        0, len(yvals) - 1, 12).round().astype('int'))]
+    ax.set_yticks(tick_vals)
+
+    ax.set_xlim(time_lims[0], time_lims[-1])
+    ax.set_ylim(ylim)
+
+    return im

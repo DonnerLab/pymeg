@@ -365,6 +365,100 @@ def get_clusters():
 
     return all_clusters, visual_field_clusters, glasser_clusters, jwg_clusters
 
+
+def labels2clusters(labels):
+    res = {}
+    for cluster, names in get_clusters()[0].items():
+        res[cluster] = []
+        for l in labels:
+            if any([n in l.name for n in names]):
+                res[cluster].append(l)
+    return res
+
+
+def rois2vertex(subject, mapping, hemi, labels, vmin=0, vmax=1,
+                cmap=None,
+                subjects_dir=os.environ['SUBJECTS_DIR']):
+    '''
+    Return a pycortex Vertex data set that can be shown on a flatmap.
+    '''
+    import cortex
+    import numpy as np
+    clusters = labels2clusters(labels)
+    mask = 0.5 + \
+        np.zeros(cortex.db.fsaverage.surfaces.inflated.get()[0][0].shape[0])
+    for cluster, value in mapping.items():
+        labels = clusters[cluster]
+        for label in labels:
+            if hemi in label.name:
+                mask[label.vertices] = value
+    return cortex.dataset.Vertex(mask, subject, vmin=vmin, vmax=vmax, cmap=cmap)
+
+
+def rois2volume(subject, mapping, hemi, labels, subjects_dir=os.environ['SUBJECTS_DIR']):
+    '''
+    Create a volume that has labels filled with specific values.
+
+    mapping is a dict that maps clusters to values
+    '''
+    clusters = labels2clusters(labels)
+    imgs = []
+    for cluster, value in mapping.items():
+        img = cluster2vol(cluster, clusters[cluster], subject, hemi,
+                          subjects_dir=subjects_dir)
+        d = img.get_data()
+        d[d > 0] = value
+        imgs.append(img)
+    img = imgs.pop()
+    d = img.get_data()
+    for i in imgs:
+        d += i.get_data()
+    return img
+
+
+def cluster2vol(cluster, labels, subject, hemi,
+                subjects_dir=os.environ['SUBJECTS_DIR']):
+    '''
+    Convert labels in a cluster into one output label
+    '''
+    from os.path import join
+    from glob import glob
+    import subprocess
+    voloutfile = join(subjects_dir, subject, 'mri',
+                      '{cluster}_label.nii'.format(cluster=cluster))
+    labeloutfile = join(subjects_dir, subject, 'label',
+                        '{hemi}.{cluster}_label.label'.format(
+                            hemi=hemi, cluster=cluster))
+    labels = [l for l in labels if hemi in l.name]
+    if not os.path.isfile(labeloutfile):
+        label = labels.pop()
+        if len(labels) > 0:
+            _ = [label + l for l in labels]
+        print(label, labeloutfile)
+        label.save(labeloutfile)
+
+    if not os.path.isfile(voloutfile):
+        pass
+    cluster_map, _, _, _ = get_clusters()
+    labels = cluster_map[cluster]
+    cmd = '''
+source $FREESURFER_HOME/SetUpFreeSurfer.sh;
+/Applications/freesurfer/bin/mri_label2vol\\
+    --regheader {subjects_dir}/{subject}/mri/orig.mgz\\
+    --subject {subject}\\
+    --hemi {hemi}\\
+    --temp {subjects_dir}/{subject}/mri/orig.mgz\\
+    --proj abs -5 5 .1\\
+    --label {label}\\
+    --o {outfile}
+    '''.format(subjects_dir=subjects_dir, subject=subject, hemi=hemi,
+               label=labeloutfile, outfile=voloutfile)
+    print(cmd)
+    subprocess.call(cmd, shell=True)
+    import nibabel as nib
+    return nib.load(voloutfile)
+
+
 from collections import OrderedDict
 areas = OrderedDict()
 areas['Primary occipital'] = 'vfcPrimary'
@@ -372,7 +466,7 @@ areas['Early occipital'] = 'vfcEarly'
 areas['Ventral occipital'] = 'vfcVO'
 areas['Parahippocampal'] = 'vfcPHC'
 areas['Temporal occipital'] = 'vfcTO'
-areas['Lateral occipital'] = 'vfcTO'
+areas['Lateral occipital'] = 'vfcLO'
 areas['Dorsal occipital'] = 'vfcV3ab'
 areas['Intraparietal 1'] = 'vfcIPS01'
 areas['Intraparietal 2'] = 'vfcIPS23'
@@ -392,3 +486,14 @@ areas['Premotor'] = 'HCPMMP1_premotor'
 areas['Dorsolateral prefrontal'] = 'HCPMMP1_dlpfc'
 areas['Ventrolateral prefrontal'] = 'HCPMMP1_frontal_inferior'
 areas['Orbital frontal polar'] = 'HCPMMP1_frontal_orbital_polar'
+
+
+def ensure_iter(input):
+    if isinstance(input, str):
+        yield input
+    else:
+        try:
+            for item in input:
+                yield item
+        except TypeError:
+            yield input

@@ -179,19 +179,22 @@ def get_labels(subject, filters=['*wang2015atlas*', '*JWDG.lr*'],
         labels.extend(annot)
     return labels
 
-def labels_exclude(labels, exclude_filters=['wang2015atlas.IPS4', 'wang2015atlas.IPS5', 
-                                        'wang2015atlas.SPL', 'JWG_lat_Unknown']):
+
+def labels_exclude(labels, exclude_filters=['wang2015atlas.IPS4', 'wang2015atlas.IPS5',
+                                            'wang2015atlas.SPL', 'JWG_lat_Unknown']):
     labels_to_exclude = []
     for l in labels:
-        is_exclude = np.array([(f in l.name) for f in exclude_filters]).sum() > 0
+        is_exclude = np.array([(f in l.name)
+                               for f in exclude_filters]).sum() > 0
         if is_exclude:
             labels_to_exclude.append(l)
     for l in labels_to_exclude:
         labels.remove(l)
     return labels
 
+
 def labels_remove_overlap(labels, priority_filters=['wang', 'JWG'],):
-    
+
     vertices_nr_ori = sum([l.vertices.shape[0] for l in labels])
 
     labels_no_overlap = []
@@ -203,26 +206,29 @@ def labels_remove_overlap(labels, priority_filters=['wang', 'JWG'],):
         # get all category 1 vertices:
         cat1_vertices = []
         for l in labels_hemi:
-            is_priority = np.array([(f in l.name) for f in priority_filters]).sum() > 0
+            is_priority = np.array([(f in l.name)
+                                    for f in priority_filters]).sum() > 0
             if is_priority:
                 cat1_vertices.append(l.vertices)
         cat1_vertices = np.unique(np.concatenate(cat1_vertices))
 
         # remove category1 vertices from all other labels:
         for i, l in enumerate(labels_hemi):
-            is_priority = np.array([(f in l.name) for f in priority_filters]).sum() > 0
+            is_priority = np.array([(f in l.name)
+                                    for f in priority_filters]).sum() > 0
             if not is_priority:
                 cat1_indices = np.isin(labels_hemi[i].vertices, cat1_vertices)
-                labels_hemi[i].vertices = labels_hemi[i].vertices[~cat1_indices]
-        
+                labels_hemi[i].vertices = labels_hemi[
+                    i].vertices[~cat1_indices]
+
         labels_no_overlap.extend(labels_hemi)
 
     vertices_nr_new = sum([l.vertices.shape[0] for l in labels_no_overlap])
-    
+
     print('vertices ori: {}'.format(vertices_nr_ori))
     print('vertices new:  {}'.format(vertices_nr_new))
-    print('excluded: {}'.format(vertices_nr_ori-vertices_nr_new))
-    
+    print('excluded: {}'.format(vertices_nr_ori - vertices_nr_new))
+
     return labels_no_overlap
 
 
@@ -245,12 +251,13 @@ def get_head_correct_info(raw_filename, epoch_filename, N=-1):
     return trans, fiducials, info
 
 
-
 def get_trans_epoch(raw_filename, epoch_filename):
     from os.path import join
-    save_path=os.environ['PYMEG_CACHE_DIR']
-    save_file = join(save_path, 
-        epoch_filename.split("/")[-1].replace(".fif","").replace(".gz", "") + "-trans.fif")
+    save_path = os.environ['PYMEG_CACHE_DIR']
+    save_file = join(save_path,
+                     epoch_filename.split("/")[-1]
+                     .replace(".fif", "")
+                     .replace(".gz", "") + "-trans.fif")
     if os.path.isfile(save_file):
         return save_file
     trans, fiducials, info = get_head_correct_info(
