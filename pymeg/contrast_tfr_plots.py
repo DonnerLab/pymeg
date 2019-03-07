@@ -91,6 +91,25 @@ def plot_streams_fig(
     flip_cbar=False,
     suffix="",
 ):
+    """
+    Produce a plot that aranges TFR according to a gradient from 
+    sensory to motor cortex with association cortex in between. 
+
+    To make this figure somewhat adaptive to different frequencies
+    and time windows it expects a PlotConfig object as 2nd 
+    argument. This object describes how an axis that describes an
+    epoch and contrast should be formatted. See doc string and 
+    example config above.
+
+    Args:
+        df: pd.DataFrame
+    Data frame that contains TFR data, output of contrast_tfr.compute_contrast.
+        configuration: PlotConfig object
+        stats: True, False or dict
+    If False show no cluster permutation test, if True compute permuatation
+    test and show result as outline, if dict load results of permuation
+    test from this. Dict can be populated by contrast_tfr.get_tfr_stats.
+    """
     from collections import namedtuple
 
     Plot = namedtuple(
@@ -137,8 +156,7 @@ def plot_tfr_selected_rois(
     nr_cols = np.max([p.location[0] for p in layout]) + 1
     fig = plt.figure(figsize=(nr_cols * 1.5, 3.5))
     ratio = (np.diff(conf.time_windows['response'])[0] / np.diff(conf.time_windows['stimulus'])[0]) 
-    print(ratio, np.diff(conf.time_windows['stimulus'])[0], np.diff(conf.time_windows['response'])[0])
-    #(0.1 - -0.35) / (1.1 - -0.2)
+        
     gs = matplotlib.gridspec.GridSpec(
         4, (nr_cols * 3), width_ratios=list(np.tile([1, ratio, 0.1], nr_cols))
     )
