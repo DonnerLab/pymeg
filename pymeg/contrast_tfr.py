@@ -13,7 +13,6 @@ memory = Memory(cachedir=os.environ['PYMEG_CACHE_DIR'], verbose=0)
 backend = 'loky'
 # backend = 'multiprocessing'
 
-
 class Cache(object):
     """A cache that can prevent reloading from disk.
 
@@ -73,6 +72,12 @@ def baseline_per_sensor_get(tfr, baseline_time=(-0.25, -0)):
         axis=1)  # This should be len(nr_freqs * nr_hannels)
     return base
 
+def baseline_apply(tfr, baseline):
+
+    X = tfr.values
+    b = np.atleast_2d(baseline.loc[tfr.index].values).T # Makes sure that order is as in X
+    tfr.loc[:, :] = (X - b) / b * 100
+    return tfr
 
 def baseline_per_sensor_apply(tfr, baseline):
     '''
@@ -153,13 +158,10 @@ def make_tfr_contrasts(tfr_data, tfr_data_to_baseline, meta_data,
         return None, {condition: num_trials_in_condition}
     tfr_data_condition = tfr_data_condition.groupby(['freq', 'area']).mean()
 
-    #FIXME takes ages!!! # apply baseline, and collapse across sensors:
+    # apply baseline:
+    tfr_data_condition = baseline_apply(tfr_data_condition, baseline)
     # tfr_data_condition = baseline_per_sensor_apply(
     #     tfr_data_condition, baseline=baseline).groupby(['freq', 'area']).mean()
-    X = np.array(tfr_data_condition)
-    b = np.atleast_2d(np.array(baseline)).T
-    y = (X - b) / b * 100
-    tfr_data_condition.loc[:,:] = y
 
     tfr_data_condition['condition'] = condition
     tfr_data_condition = tfr_data_condition.set_index(
@@ -234,20 +236,19 @@ def pool_conditions(conditions, data_globs, base_globs, meta_data,
 
 
 @memory.cache(ignore=['cache'])
-def compute_contrast(contrasts, hemis, data_globstring, base_globstring,
+def compute_contrast(contrasts, data_globstring, base_globstring,
                      meta_data, baseline_time, baseline_per_condition=True,
                      n_jobs=1, cache=Cache(cache=False),
                      all_clusters=None):
     """Compute a single contrast from tfr data
     Args:
         contrast: dict
-            Contains contrast names as keys and len==2 tuples as values. The
-            tuples contain a list of condition names first and then a set of
-            weights for each condition. Condition names identify columns in
-            the meta data that are one for each trial that belongs to
-            this condition.
-        hemi: str
-            Can be:
+            Contains contrast names as keys and len==3 tuples as values. The
+            tuples contain a list of condition names first, then a set of
+            weights for each condition, then the hemispheres to compute the
+            contrast across. Condition names identify columns in the meta 
+            data that are one for each trial that belongs to this condition.
+            Hemispheres can be:
                 'lh_is_ipsi' if contrast is ipsi-contra hemi and left hemi is
                     ipsi.
                 'rh_is_ipsi' if contrast is ipis-contra and right hemi is ipsi
@@ -305,14 +306,11 @@ def compute_contrast(contrasts, hemis, data_globstring, base_globstring,
     tfr_condition = tfr_condition.groupby(
         ['area', 'condition', 'freq']).mean()
     cluster_contrasts = []
-    # for cur_contrast, hemi, cluster in product(contrasts.items(), hemis,
-    #                                            all_clusters.keys()):
-    # for cur_contrast, hemi in product(contrasts.items(), hemis,):
-    for cur_contrast, hemi in zip(contrasts.items(), hemis,):
+    for cur_contrast in contrasts.items():
         print(cur_contrast)
         for cluster in all_clusters.keys():
             print(cluster)
-            contrast, (conditions, weights) = cur_contrast
+            contrast, (conditions, weights, hemi) = cur_contrast
             logging.info('Start computing contrast %s for cluster %s -> %s' %
                          (contrast, cluster, hemi))
             right = []
@@ -405,7 +403,7 @@ def augment_data(meta, response_left, stimulus):
 
 def par_stats(times, freqs, tfr, threshold=0.05, n_jobs=1):
     # For multiprocessing
-    return get_tfr_stats(times, freqs, tfr, threshold=threshold,
+    return get_tfr_stats(times, freqs, tfr,  threshold=threshold,
                          n_jobs=n_jobs)
 
 
