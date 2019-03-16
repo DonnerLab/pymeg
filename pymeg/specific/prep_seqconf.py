@@ -30,16 +30,28 @@ trigger.irimotion = 43;
 import pickle
 import mne
 import numpy as np
+from collections import namedtuple
 from pymeg.preprocessing import get_meta, preprocess_block, get_epoch
 
 savepath = '/home/nwiming/'
 
-mapping = {20: ('response', 20),
-           21: ['response', 21],
-           22: ['response', 22],
-           23: ['response', 23],
-           29: ['response', 29],
+recording = namedtuple('Recording', [filename, subject, session, block])
+filenames = [
+  recording('S04-1_Seqconf_20190312_01.ds', 4, 1, [1,2,3,4]),
+  recording('S04-1_Seqconf_20190312_02.ds', 4, 1, [5,6,7,8]),
+  recording('S05-1_Seqconf_20190316_02.ds', 5, 1, [1,2]),
+  recording('S05-1_Seqconf_20190316_03.ds', 5, 1, [3,4]),
+  recording('S05-1_Seqconf_20190316_04.ds', 5, 1, [5,6]),
+  recording('S05-1_Seqconf_20190316_05.ds', 5, 1, [7,8]),
+]
+
+mapping = {20: ('response', 'leftcor'),
+           21: ['response', 'lefterr'],
+           22: ['response', 'rightcor'],
+           23: ['response', 'righterr'],
+           29: ['response', 'garbage'],
            32: ['confidence_onset', 0],
+           34: ['start_block', 0],
            11: ['confidence', 1],
            12: ['confidence', 2],
            13: ['confidence', 3],
@@ -51,6 +63,17 @@ mapping = {20: ('response', 20),
            43: ['irimotion', 1]}
 
 
+def get_hash(subject, session, block, trial):
+  '''
+  2 sessions
+  8 blocks
+  120 trials per block
+  960 per session
+  = 1920 trials per subject
+  '''
+  return trial + 120*(block-1) + (120*8*(session-1)) + (1920*(subject-1))
+
+
 def to_blocks(timing, sfreq=1200., min_dur=8, max_dur=12):
     '''
     Find breaks to cut data into pieces.
@@ -59,7 +82,7 @@ def to_blocks(timing, sfreq=1200., min_dur=8, max_dur=12):
     defines start and end of a block. Start and endpoint
     are inclusive (!).    
     '''
-    from collections import namedtuple
+    
     onsets = (timing.values - timing.values[0]) / sfreq / 60
     diffs = np.diff(onsets)
     id_break = np.where(diffs > 1)[0]
@@ -84,9 +107,9 @@ def filenames(subject, epoch, recording, block):
             join(path, fname + '.artdef'))
 
 
-def preprocess_raw(subject, recording, filename):
+def preprocess_raw(recording):
     raw = mne.io.ctf.read_raw_ctf(
-        '/home/kdesender/meg_data/seqconf/Pilot01-01_Seqconf_20190123_01.ds')
+        joint(inpath, recording.filename))
 
     meta, timing = get_meta(raw, mapping, {}, 41, 41)
 
@@ -112,17 +135,25 @@ def preprocess_raw(subject, recording, filename):
         block_meta = meta.loc[block.start_trial:block.end_trial + 1, :]
         block_timing = timing.loc[block.start_trial:block.end_trial + 1, :]
 
+        # Get unique trial indices
+        index = get_hash(recording.subject, 
+          recording.session, 
+          recording.block[i], 
+          np.arange(1, len(block_meta)+1))
+        block_meta.loc[:, 'trial'] = index
+        block_timing.loc[:, 'trial'] = index
         # Cut into epochs
         for epoch, event, (tmin, tmax), (rmin, rmax) in zip(
-                ['stimulus', 'response'],
-                ['coherence_on_time', 'response_time'],
-                [(-1, 3), (-1.5, 1.5)],
-                [(-0.5, 2.5), (-1.5, 1)]):
+                ['stimulus', 'response', 'confidence'],
+                ['coherence_on_time', 'response_time', 'confidence_time'],
+                [(-1, 3), (-1.5, 1.5), (-1.5, 1.5)],
+                [(-0.5, 2.5), (-1.5, 1), (-1.5, 1)]):
 
             m, s = get_epoch(r, block_meta, block_timing,
                              event=event, epoch_time=(
                                  tmin, tmax),
                              reject_time=(rmin, rmax),
+                             epoch_label='trial'
                              )
 
             if len(s) <= 0:
