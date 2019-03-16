@@ -32,7 +32,8 @@ import mne
 import numpy as np
 from pymeg.preprocessing import get_meta, preprocess_block, get_epoch
 
-savepath = '/home/nwiming/'
+inpath = '/home/kdesender/meg_data/seqconf/'
+savepath = '/home/nwilming/seqconf'
 
 mapping = {20: ('response', 20),
            21: ['response', 21],
@@ -89,7 +90,8 @@ def preprocess_raw(subject, recording, filename):
         '/home/kdesender/meg_data/seqconf/Pilot01-01_Seqconf_20190123_01.ds')
 
     meta, timing = get_meta(raw, mapping, {}, 41, 41)
-
+    meta.loc[:, 'hash'] = np.arange(len(meta))
+    meta.loc[:, 'timing'] = np.arange(len(meta))
     blocks = to_blocks(timing.coherence_on_time)
 
     min_start, max_end = np.min(raw.times), np.max(raw.times)
