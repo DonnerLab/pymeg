@@ -20,10 +20,14 @@ class PlotConfig(object):
         self.config = {}
 
     def configure_contrast(self, contrast, **kwargs):
-        self.config[contrast] = kwargs
+        if not contrast in self.config:
+            self.config[contrast] = {} 
+        self.config[contrast].update(kwargs)
 
     def configure_epoch(self, epoch, **kwargs):
-        self.config[epoch] = kwargs
+        if not epoch in self.config:
+            self.config[epoch] = {} 
+        self.config[epoch].update(kwargs)
 
     def markup(self, epoch, ax, left=True, bottom=True):
         for key, value in self.config[epoch].items():
@@ -85,10 +89,11 @@ for key, values in {
 
 
 def plot_streams_fig(
-    df,
+    df, 
+    contrast_name, 
     configuration,
     stats=False,        
-    flip_cbar=False,
+    cmap=False,
     suffix="",
 ):
     """
@@ -138,16 +143,12 @@ def plot_streams_fig(
         Plot("PMd/v", "HCPMMP1_premotor", [8, middle], False, True),
         Plot("M1", "JWG_M1", [9, middle], False, True),
     ]
-    # fmt: on
-    if flip_cbar:
-        cmap = "RdBu"
-    else:
-        cmap = "RdBu_r"
 
-    for contrast_name in configuration.contrasts:        
-        fig = plot_tfr_selected_rois(
-            contrast_name, df, layout, configuration, cluster_correct=stats, cmap=cmap
-        )        
+    
+    fig = plot_tfr_selected_rois(
+        contrast_name, df, layout, configuration, cluster_correct=stats, cmap=cmap
+    )
+    return fig        
 
 
 def plot_tfr_selected_rois(
@@ -203,7 +204,7 @@ def plot_tfr_selected_rois(
                 cmap=cmap,
                 stat_cutoff=stat_cutoff,
             )
-            
+                        
             conf.markup(timelock, ax, left=P.annot_y, bottom=P.annot_x)
             if j == 1:
                 #ax.set_xticks([])
