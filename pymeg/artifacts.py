@@ -15,14 +15,25 @@ import pandas as pd
 from .tools import hilbert
 
 
-def annotate_blinks(raw, ch_mapping={'x': 'UADC002-3705', 'y': 'UADC003-3705', 'p': 'UADC004-3705'}):
+def annotate_blinks(raw, threshold=10, acc_thresh=2000, Hz=1200, 
+        ch_mapping={'x': 'UADC002-3705', 'y': 'UADC003-3705', 'p': 'UADC004-3705'}):
     '''
     Detect blinks and annotate as bad blinks
+
+    Arguments:
+        threshold : float
+            Velocity threshold for saccade detection
+        acc_thresh : float
+            Acceleration threshold for saccade detection
+        Hz: int
+            Sampling rate of data.
+    Returns:
+        mne.Annotations object with blinks labeled as 'bad blinks'
     '''
     logging.info('Annotating blinks artifacts')
     x, y, p = eye_voltage2gaze(raw, ch_mapping=ch_mapping)
     xpos, ypos = x.ravel() / ppd(), y.ravel() / ppd()
-    sc = saccade_detection(xpos, ypos, threshold=10, acc_thresh=2000, Hz=1200)
+    sc = saccade_detection(xpos, ypos, threshold=threshold, acc_thresh=acc_thresh, Hz=Hz)
     blinks, scfilt = blink_detection(xpos, ypos, sc)
     if len(blinks) == 0:
         return None
@@ -32,6 +43,14 @@ def annotate_blinks(raw, ch_mapping={'x': 'UADC002-3705', 'y': 'UADC003-3705', '
 
 
 def annotate_muscle(raw, cutoff=10):
+    '''
+    Detect blinks and annotate as bad blinks
+
+    Arguments:
+       cutoff: float
+    Returns:
+        mne.Annotations object with blinks labeled as 'bad blinks'
+    '''
     logging.info('Annotating muscle artifacts')
     try:
         arts, z = detect_muscle(raw.copy(), cutoff=cutoff)
@@ -138,12 +157,16 @@ def detect_cars(raw, cutoff=3.5, der_cutoff=5.0, frequency_band=(None, 1)):
 
 def detect_muscle(raw, cutoff=10, frequency_band=(110, 140)):
     '''
-    Detect muscle artifacts on blocks and ignore intermediate data.
+    Detect muscle artifacts in blocks and ignore intermediate data.
 
     This works analagously to the fieldtrip detect artifact routine.
 
     Data epochs that are already marked as bad by the annotations in raw will be
     excluded for computation of mean and std.
+
+    Arguments:
+        cutoff: float
+            Value above/below data points are considered outliers
     '''
 
     logging.info('Detecting muscle events with cutoff %i' % cutoff)
@@ -152,10 +175,6 @@ def detect_muscle(raw, cutoff=10, frequency_band=(110, 140)):
         raw.load_data()
     raw.pick_channels([x for x in raw.ch_names if x.startswith('M')])
 
-    # filt = mne.filter.band_pass_filter(raw._data, raw.info['sfreq'],
-    #                                   frequency_band[0], frequency_band[1],  method='iir',
-    #                                   iir_params = dict(order=9, ftype='butter'),
-    #                                   copy=False)
     filt = mne.filter.filter_data(raw._data, raw.info['sfreq'],
                                   l_freq=frequency_band[
                                       0], h_freq=frequency_band[1],  method='iir',

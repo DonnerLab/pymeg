@@ -136,25 +136,35 @@ def get_meta(raw, mapping, trial_pins, trial_start, trial_end, other_pins=None):
     return meta.loc[:, meta_fields], meta.loc[:, time_fields]
 
 
-def preprocess_block(raw, blinks=True):
+def preprocess_block(raw, blinks=True, 
+    blink_vel_threshold=10, 
+    blink_acc_thresh=2000,
+    muscle_cutoff=10,
+    car_cutoff=4.0, 
+    car_der_cutoff=7.):
     '''
     Apply artifact detection to a block of data.
     '''
     ab = None
     artdef = {}
     if blinks:
-        ab = artifacts.annotate_blinks(raw)
+        ab = artifacts.annotate_blinks(raw, 
+            threshold=blink_vel_threshold,
+            acc_thresh=blink_acc_thresh)
         artdef['blinks'] = ab
-    am, zm = artifacts.annotate_muscle(raw)
+    am, zm = artifacts.annotate_muscle(raw, cutoff=muscle_cutoff)
     artdef['muscle'] = zm
-    ac, zc, d = artifacts.annotate_cars(raw)
+    ac, zc, d = artifacts.annotate_cars(raw, 
+        cutoff=car_cutoff, 
+        der_cutoff=car_der_cutoff)
     artdef['cars'] = [zc, d]
     raw, ar, zj, jumps = artifacts.annotate_jumps(raw)
     artdef['jumps'] = zj
     ants = artifacts.combine_annotations(
         [x for x in [ab, am, ac, ar] if x is not None])
     #ants.onset += raw.first_samp/raw.info['sfreq']
-    raw.annotations = ants
+    #raw.annotations = ants
+    raw.set_annotations(ants)
     artdef.update({'muscle': zm, 'cars': (zc, d), 'jumps': (zj, jumps)})
     return raw, ants, artdef
 
@@ -218,7 +228,8 @@ def get_epoch(raw, meta, timing,
     new_ants = ant2time_window(
         raw, annotations, ev[:, 0], epoch_time=reject_time)
     print('Overlapping w/bad events:', len(new_ants.onset))
-    raw.annotations = new_ants
+    #raw.annotations = new_ants
+    raw.set_annotations(new_ants)
     stim_period = mne.Epochs(raw, ev, tmin=epoch_time[0], tmax=epoch_time[1],
                              baseline=None,
                              reject_by_annotation=True,
@@ -229,7 +240,8 @@ def get_epoch(raw, meta, timing,
     if len(stim_period.events) == 0:
         raise RuntimeError('No trials left')
     stim_period = stim_period[[str(i) for i in stim_period.events[:, 2]]]
-    raw.annotations = annotations
+    raw.set_annotations(annotations)
+    #raw.annotations = annotations
     return meta, stim_period
 
 
