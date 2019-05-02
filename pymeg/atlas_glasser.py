@@ -2,32 +2,35 @@ import mne
 import os
 
 
-'''
+"""
 Get HCP MMP Parcellation for a set of subjects
-'''
+"""
 
 
 def get_hcp(subjects_dir):
-    mne.datasets.fetch_hcp_mmp_parcellation(
-        subjects_dir=subjects_dir, verbose=True)
+    mne.datasets.fetch_hcp_mmp_parcellation(subjects_dir=subjects_dir, verbose=True)
 
 
 def get_hcp_annotation(subjects_dir, subject):
-    for hemi in ['lh', 'rh']:
+    for hemi in ["lh", "rh"]:
         # transform atlas to individual space:
-        cmd = 'mris_apply_reg --src-annot {} --trg {} --streg {} {}'.format(
-            os.path.join(subjects_dir, 'fsaverage', 'label',
-                         '{}.HCPMMP1.annot'.format(hemi)),
-            os.path.join(subjects_dir, subject, 'label',
-                         '{}.HCPMMP1.annot'.format(hemi)),
-            os.path.join(subjects_dir, 'fsaverage', 'surf',
-                         '{}.sphere.reg'.format(hemi)),
-            os.path.join(subjects_dir, subject, 'surf', '{}.sphere.reg'.format(hemi)),)
+        cmd = "mris_apply_reg --src-annot {} --trg {} --streg {} {}".format(
+            os.path.join(
+                subjects_dir, "fsaverage", "label", "{}.HCPMMP1.annot".format(hemi)
+            ),
+            os.path.join(
+                subjects_dir, subject, "label", "{}.HCPMMP1.annot".format(hemi)
+            ),
+            os.path.join(
+                subjects_dir, "fsaverage", "surf", "{}.sphere.reg".format(hemi)
+            ),
+            os.path.join(subjects_dir, subject, "surf", "{}.sphere.reg".format(hemi)),
+        )
         os.system(cmd)
 
 
 def get_hcp_labels(subjects_dir, subjects):
-    '''
+    """
     Downloads HCP MMP Parcellation and applies it to a set of subjects
 
     Arguments
@@ -37,133 +40,157 @@ def get_hcp_labels(subjects_dir, subjects):
     subjects: list
         List of subject IDs (need to correspond to folders in
         freesurfer subject dir.)
-    '''
+    """
 
-    mne.datasets.fetch_hcp_mmp_parcellation(
-        subjects_dir=subjects_dir, verbose=True)
+    mne.datasets.fetch_hcp_mmp_parcellation(subjects_dir=subjects_dir, verbose=True)
 
     for subj in subjects:
-        for hemi in ['lh', 'rh']:
+        for hemi in ["lh", "rh"]:
 
             # transform atlas to individual space:
-            cmd = 'mris_apply_reg --src-annot {} --trg {} --streg {} {}'.format(
-                os.path.join(subjects_dir, 'fsaverage', 'label',
-                             '{}.HCPMMP1_combined.annot'.format(hemi)),
-                os.path.join(subjects_dir, subj, 'label',
-                             '{}.HCPMMP1_combined.annot'.format(hemi)),
-                os.path.join(subjects_dir, 'fsaverage', 'surf',
-                             '{}.sphere.reg'.format(hemi)),
-                os.path.join(subjects_dir, subj, 'surf', '{}.sphere.reg'.format(hemi)),)
+            cmd = "mris_apply_reg --src-annot {} --trg {} --streg {} {}".format(
+                os.path.join(
+                    subjects_dir,
+                    "fsaverage",
+                    "label",
+                    "{}.HCPMMP1_combined.annot".format(hemi),
+                ),
+                os.path.join(
+                    subjects_dir,
+                    subj,
+                    "label",
+                    "{}.HCPMMP1_combined.annot".format(hemi),
+                ),
+                os.path.join(
+                    subjects_dir, "fsaverage", "surf", "{}.sphere.reg".format(hemi)
+                ),
+                os.path.join(subjects_dir, subj, "surf", "{}.sphere.reg".format(hemi)),
+            )
             os.system(cmd)
 
             # unpack into labels:
-            cmd = 'mri_annotation2label --subject {} --hemi {} --labelbase {} --annotation {}'.format(
+            cmd = "mri_annotation2label --subject {} --hemi {} --labelbase {} --annotation {}".format(
                 subj,
                 hemi,
-                '{}.HCPMMP1_combined'.format(hemi),
-                'HCPMMP1_combined'.format(hemi),
+                "{}.HCPMMP1_combined".format(hemi),
+                "HCPMMP1_combined".format(hemi),
             )
             os.system(cmd)
 
             # rename in alphabetical order...
             orig_names = [
-                '???',
-                'Anterior Cingulate and Medial Prefrontal Cortex',
-                'Auditory Association Cortex',
-                'Dorsal Stream Visual Cortex',
-                'DorsoLateral Prefrontal Cortex',
-                'Early Auditory Cortex',
-                'Early Visual Cortex',
-                'Inferior Frontal Cortex',
-                'Inferior Parietal Cortex',
-                'Insular and Frontal Opercular Cortex',
-                'Lateral Temporal Cortex',
-                'MT+ Complex and Neighboring Visual Areas',
-                'Medial Temporal Cortex',
-                'Orbital and Polar Frontal Cortex',
-                'Paracentral Lobular and Mid Cingulate Cortex',
-                'Posterior Cingulate Cortex',
-                'Posterior Opercular Cortex',
-                'Premotor Cortex',
-                'Primary Visual Cortex (V1)',
-                'Somatosensory and Motor Cortex',
-                'Superior Parietal Cortex',
-                'Temporo-Parieto-Occipital Junction',
-                'Ventral Stream Visual Cortex'
+                "???",
+                "Anterior Cingulate and Medial Prefrontal Cortex",
+                "Auditory Association Cortex",
+                "Dorsal Stream Visual Cortex",
+                "DorsoLateral Prefrontal Cortex",
+                "Early Auditory Cortex",
+                "Early Visual Cortex",
+                "Inferior Frontal Cortex",
+                "Inferior Parietal Cortex",
+                "Insular and Frontal Opercular Cortex",
+                "Lateral Temporal Cortex",
+                "MT+ Complex and Neighboring Visual Areas",
+                "Medial Temporal Cortex",
+                "Orbital and Polar Frontal Cortex",
+                "Paracentral Lobular and Mid Cingulate Cortex",
+                "Posterior Cingulate Cortex",
+                "Posterior Opercular Cortex",
+                "Premotor Cortex",
+                "Primary Visual Cortex (V1)",
+                "Somatosensory and Motor Cortex",
+                "Superior Parietal Cortex",
+                "Temporo-Parieto-Occipital Junction",
+                "Ventral Stream Visual Cortex",
             ]
 
             new_names = [
-                '23_inside',
-                '19_cingulate_anterior_prefrontal_medial',
-                '11_auditory_association',
-                '03_visual_dors',
-                '22_prefrontal_dorsolateral',
-                '10_auditory_primary',
-                '02_visual_early',
-                '21_frontal_inferior',
-                '17_parietal_inferior',
-                '12_insular_frontal_opercular',
-                '14_lateral_temporal',
-                '05_visual_lateral',
-                '13_temporal_medial',
-                '20_frontal_orbital_polar',
-                '07_paracentral_lob_mid_cingulate',
-                '18_cingulate_posterior',
-                '09_opercular_posterior',
-                '08_premotor',
-                '01_visual_primary',
-                '06_somatosensory_motor',
-                '16_parietal_superior',
-                '15_temporal_parietal_occipital_junction',
-                '04_visual_ventral',
+                "23_inside",
+                "19_cingulate_anterior_prefrontal_medial",
+                "11_auditory_association",
+                "03_visual_dors",
+                "22_prefrontal_dorsolateral",
+                "10_auditory_primary",
+                "02_visual_early",
+                "21_frontal_inferior",
+                "17_parietal_inferior",
+                "12_insular_frontal_opercular",
+                "14_lateral_temporal",
+                "05_visual_lateral",
+                "13_temporal_medial",
+                "20_frontal_orbital_polar",
+                "07_paracentral_lob_mid_cingulate",
+                "18_cingulate_posterior",
+                "09_opercular_posterior",
+                "08_premotor",
+                "01_visual_primary",
+                "06_somatosensory_motor",
+                "16_parietal_superior",
+                "15_temporal_parietal_occipital_junction",
+                "04_visual_ventral",
             ]
 
-            for o, n, i in zip(orig_names, new_names,
-                               ["%.2d" % i for i in range(23)]):
+            for o, n, i in zip(orig_names, new_names, ["%.2d" % i for i in range(23)]):
                 os.rename(
-                    os.path.join(subjects_dir, subj, 'label',
-                                 '{}.HCPMMP1_combined-0{}.label'.format(hemi, i)),
-                    os.path.join(subjects_dir, subj, 'label',
-                                 '{}.HCPMMP1_{}.label'.format(hemi, o)),
+                    os.path.join(
+                        subjects_dir,
+                        subj,
+                        "label",
+                        "{}.HCPMMP1_combined-0{}.label".format(hemi, i),
+                    ),
+                    os.path.join(
+                        subjects_dir,
+                        subj,
+                        "label",
+                        "{}.HCPMMP1_{}.label".format(hemi, o),
+                    ),
                 )
                 os.rename(
-                    os.path.join(subjects_dir, subj, 'label',
-                                 '{}.HCPMMP1_{}.label'.format(hemi, o)),
-                    os.path.join(subjects_dir, subj, 'label',
-                                 '{}.HCPMMP1_{}.label'.format(hemi, n)),
+                    os.path.join(
+                        subjects_dir,
+                        subj,
+                        "label",
+                        "{}.HCPMMP1_{}.label".format(hemi, o),
+                    ),
+                    os.path.join(
+                        subjects_dir,
+                        subj,
+                        "label",
+                        "{}.HCPMMP1_{}.label".format(hemi, n),
+                    ),
                 )
 
 
 def get_JWDG_labels(subject, subjects_dir):
     import glob
-    lh_labels = glob.glob(os.path.join(
-        subjects_dir, 'fsaverage', 'label', 'lh.JWDG*'))
-    rh_labels = glob.glob(os.path.join(
-        subjects_dir, 'fsaverage', 'label', 'rh.JWDG*'))
+
+    lh_labels = glob.glob(os.path.join(subjects_dir, "fsaverage", "label", "lh.JWDG*"))
+    rh_labels = glob.glob(os.path.join(subjects_dir, "fsaverage", "label", "rh.JWDG*"))
 
     mni_reg_file = os.path.join(
-        subjects_dir, subject, 'mri', 'transforms', 'reg.mni152.2mm.lta')
+        subjects_dir, subject, "mri", "transforms", "reg.mni152.2mm.lta"
+    )
     if not os.path.isfile(mni_reg_file):
-        print('Doing mni152reg')
-        os.system('mni152reg --s %s' % subject)
+        print("Doing mni152reg")
+        os.system("mni152reg --s %s" % subject)
 
-    for hemi, labels in zip(['lh', 'rh'], [lh_labels, rh_labels]):
+    for hemi, labels in zip(["lh", "rh"], [lh_labels, rh_labels]):
         for label in labels:
-            align_command = 'mri_label2label \
+            align_command = "mri_label2label \
                  --srclabel {label} \
                  --srcsubject fsaverage \
                  --trgsubject {subject} \
                  --regmethod surface \
                  --trglabel {base_name} \
-                 --hemi {hemi}'.format(label=label, subject=subject,
-                                       base_name=label.split('/')[-1],
-                                       hemi=hemi)
+                 --hemi {hemi}".format(
+                label=label, subject=subject, base_name=label.split("/")[-1], hemi=hemi
+            )
             print(align_command)
             os.system(align_command)
 
 
 def get_clusters():
-
+    # fmt: off
     visual_field_clusters = {
         'vfcPrimary': [
             u'lh.wang2015atlas.V1d-lh', u'rh.wang2015atlas.V1d-rh',
@@ -355,16 +382,44 @@ def get_clusters():
                 'd32', '8BM', '9m']]
         ),
     }
-
+    # fmt: on
     all_clusters = {}
     all_clusters.update(visual_field_clusters)
     all_clusters.update(jwg_clusters)
     all_clusters.update(glasser_clusters)
-    areas = [item for sublist in [all_clusters[k]
-                                  for k in all_clusters.keys()] for item in sublist]
+    areas = [
+        item
+        for sublist in [all_clusters[k] for k in all_clusters.keys()]
+        for item in sublist
+    ]
 
     return all_clusters, visual_field_clusters, glasser_clusters, jwg_clusters
 
+
+def get_all_glasser_clusters():
+    # fmt: off
+    labels = [
+        "1", "10d", "10pp", "10r", "10v", "11l", "13l", "2", "23c", "23d",
+        "24dd", "24dv", "25", "31a", "31pd", "31pv", "33pr", "3a", "3b", "4",
+        "43", "44", "45", "46", "47l", "47m", "47s", "52", "55b", "5ROI",
+        "5m", "5mv", "6a", "6d", "6ma", "6mp", "6r", "6v", "7AROI", "7Am",
+        "7PC", "7PROI", "7Pm", "7m", "8Ad", "8Av", "8BM", "8BROI", "8C", "9-46d",
+        "9a", "9m", "9p", "A1", "A4", "A5", "AAIC", "AIP", "AVI", "DVT",
+        "EC", "FEF", "FFC", "FOP1", "FOP2", "FOP3", "FOP4", "FOP5", "FST", "H",
+        "IFJa", "IFJp", "IFSa", "IFSp", "IP0", "IP1", "IP2", "IPS1", "Ig", "LBelt",
+        "LIPd", "LIPv", "LO1", "LO2", "LO3", "MBelt", "MI", "MIP", "MST", "MT",
+        "OFC", "OP1", "OP2-3", "OP4", "PBelt", "PCV", "PEF", "PF", "PFcm", "PFm",
+        "PFop", "PFt", "PGi", "PGp", "PGs", "PH", "PHA1", "PHA2", "PHA3", "PHT",
+        "PI", "PIT", "POS1", "POS2", "PSROI", "PeEc", "Pir", "PoI1", "PoI2", "PreS",
+        "ProS", "RI", "RSC", "SCEF", "SFROI", "STGa", "STSda", "STSdp", "STSva", "STSvp",
+        "STV", "TA2", "TE1a", "TE1m", "TE1p", "TE2a", "TE2p", "TF", "TGd", "TGv",
+        "TPOJ1", "TPOJ2", "TPOJ3", "V1", "V2", "V3", "V3A", "V3B", "V3CD", "V4",
+        "V4t", "V6", "V6A", "V7", "V8", "VIP", "VMV1", "VMV2", "VMV3", "VVC",
+        "a10p", "a24", "a24pr", "a32pr", "a47r", "a9-46v", "d23ab", "d32", "i6-8", "p10p",
+        "p24", "p24pr", "p32", "p32pr", "p47r", "p9-46v", "pOFC", "s32", "s6-8", "v23ab",        
+    ]
+    # fmt: on
+    return {l:['L_{}_ROI-lh'.format(l), 'R_{}_ROI-rh'.format(l)] for l in labels}
 
 def labels2clusters(labels):
     res = {}
@@ -376,17 +431,24 @@ def labels2clusters(labels):
     return res
 
 
-def rois2vertex(subject, mapping, hemi, labels, vmin=0, vmax=1,
-                cmap=None,
-                subjects_dir=os.environ['SUBJECTS_DIR']):
-    '''
+def rois2vertex(
+    subject,
+    mapping,
+    hemi,
+    labels,
+    vmin=0,
+    vmax=1,
+    cmap=None,
+    subjects_dir=os.environ["SUBJECTS_DIR"],
+):
+    """
     Return a pycortex Vertex data set that can be shown on a flatmap.
-    '''
+    """
     import cortex
     import numpy as np
+
     clusters = labels2clusters(labels)
-    mask = 0.5 + \
-        np.zeros(cortex.db.fsaverage.surfaces.inflated.get()[0][0].shape[0])
+    mask = 0.5 + np.zeros(cortex.db.fsaverage.surfaces.inflated.get()[0][0].shape[0])
     for cluster, value in mapping.items():
         labels = clusters[cluster]
         for label in labels:
@@ -395,17 +457,20 @@ def rois2vertex(subject, mapping, hemi, labels, vmin=0, vmax=1,
     return cortex.dataset.Vertex(mask, subject, vmin=vmin, vmax=vmax, cmap=cmap)
 
 
-def rois2volume(subject, mapping, hemi, labels, subjects_dir=os.environ['SUBJECTS_DIR']):
-    '''
+def rois2volume(
+    subject, mapping, hemi, labels, subjects_dir=os.environ["SUBJECTS_DIR"]
+):
+    """
     Create a volume that has labels filled with specific values.
 
     mapping is a dict that maps clusters to values
-    '''
+    """
     clusters = labels2clusters(labels)
     imgs = []
     for cluster, value in mapping.items():
-        img = cluster2vol(cluster, clusters[cluster], subject, hemi,
-                          subjects_dir=subjects_dir)
+        img = cluster2vol(
+            cluster, clusters[cluster], subject, hemi, subjects_dir=subjects_dir
+        )
         d = img.get_data()
         d[d > 0] = value
         imgs.append(img)
@@ -416,19 +481,25 @@ def rois2volume(subject, mapping, hemi, labels, subjects_dir=os.environ['SUBJECT
     return img
 
 
-def cluster2vol(cluster, labels, subject, hemi,
-                subjects_dir=os.environ['SUBJECTS_DIR']):
-    '''
+def cluster2vol(
+    cluster, labels, subject, hemi, subjects_dir=os.environ["SUBJECTS_DIR"]
+):
+    """
     Convert labels in a cluster into one output label
-    '''
+    """
     from os.path import join
     from glob import glob
     import subprocess
-    voloutfile = join(subjects_dir, subject, 'mri',
-                      '{cluster}_label.nii'.format(cluster=cluster))
-    labeloutfile = join(subjects_dir, subject, 'label',
-                        '{hemi}.{cluster}_label.label'.format(
-                            hemi=hemi, cluster=cluster))
+
+    voloutfile = join(
+        subjects_dir, subject, "mri", "{cluster}_label.nii".format(cluster=cluster)
+    )
+    labeloutfile = join(
+        subjects_dir,
+        subject,
+        "label",
+        "{hemi}.{cluster}_label.label".format(hemi=hemi, cluster=cluster),
+    )
     labels = [l for l in labels if hemi in l.name]
     if not os.path.isfile(labeloutfile):
         label = labels.pop()
@@ -441,7 +512,7 @@ def cluster2vol(cluster, labels, subject, hemi,
         pass
     cluster_map, _, _, _ = get_clusters()
     labels = cluster_map[cluster]
-    cmd = '''
+    cmd = """
 source $FREESURFER_HOME/SetUpFreeSurfer.sh;
 /Applications/freesurfer/bin/mri_label2vol\\
     --regheader {subjects_dir}/{subject}/mri/orig.mgz\\
@@ -451,41 +522,48 @@ source $FREESURFER_HOME/SetUpFreeSurfer.sh;
     --proj abs -5 5 .1\\
     --label {label}\\
     --o {outfile}
-    '''.format(subjects_dir=subjects_dir, subject=subject, hemi=hemi,
-               label=labeloutfile, outfile=voloutfile)
+    """.format(
+        subjects_dir=subjects_dir,
+        subject=subject,
+        hemi=hemi,
+        label=labeloutfile,
+        outfile=voloutfile,
+    )
     print(cmd)
     subprocess.call(cmd, shell=True)
     import nibabel as nib
+
     return nib.load(voloutfile)
 
 
 from collections import OrderedDict
+
 areas = OrderedDict()
-areas['Primary occipital'] = 'vfcPrimary'
-areas['Early occipital'] = 'vfcEarly'
-areas['Ventral occipital'] = 'vfcVO'
-areas['Parahippocampal'] = 'vfcPHC'
-areas['Temporal occipital'] = 'vfcTO'
-areas['Lateral occipital'] = 'vfcLO'
-areas['Dorsal occipital'] = 'vfcV3ab'
-areas['Intraparietal 1'] = 'vfcIPS01'
-areas['Intraparietal 2'] = 'vfcIPS23'
-areas['FEF'] = 'vfcFEF'
+areas["Primary occipital"] = "vfcPrimary"
+areas["Early occipital"] = "vfcEarly"
+areas["Ventral occipital"] = "vfcVO"
+areas["Parahippocampal"] = "vfcPHC"
+areas["Temporal occipital"] = "vfcTO"
+areas["Lateral occipital"] = "vfcLO"
+areas["Dorsal occipital"] = "vfcV3ab"
+areas["Intraparietal 1"] = "vfcIPS01"
+areas["Intraparietal 2"] = "vfcIPS23"
+areas["FEF"] = "vfcFEF"
 
-areas['Anterior intraparietal sulcus'] = 'JWG_aIPS'
-areas['Intraparietal / postcentral sulcus'] = 'JWG_IPS_PCeS'
-areas['Motor cortex (hand area)'] = 'JWG_M1'
+areas["Anterior intraparietal sulcus"] = "JWG_aIPS"
+areas["Intraparietal / postcentral sulcus"] = "JWG_IPS_PCeS"
+areas["Motor cortex (hand area)"] = "JWG_M1"
 
-areas['Posterior cingulate'] = 'HCPMMP1_cingulate_pos'
-areas['Paracentral / midcingulate'] = 'HCPMMP1_paracentral_midcingulate'
-areas['Insula'] = 'HCPMMP1_insular_front_opercular'
-areas['Posterior medial frontal'] = 'post_medial_frontal'
-areas['Anterior medial frontal'] = 'ant_medial_frontal'
-areas['Ventromedial frontal'] = 'vent_medial_frontal'
-areas['Premotor'] = 'HCPMMP1_premotor'
-areas['Dorsolateral prefrontal'] = 'HCPMMP1_dlpfc'
-areas['Ventrolateral prefrontal'] = 'HCPMMP1_frontal_inferior'
-areas['Orbital frontal polar'] = 'HCPMMP1_frontal_orbital_polar'
+areas["Posterior cingulate"] = "HCPMMP1_cingulate_pos"
+areas["Paracentral / midcingulate"] = "HCPMMP1_paracentral_midcingulate"
+areas["Insula"] = "HCPMMP1_insular_front_opercular"
+areas["Posterior medial frontal"] = "post_medial_frontal"
+areas["Anterior medial frontal"] = "ant_medial_frontal"
+areas["Ventromedial frontal"] = "vent_medial_frontal"
+areas["Premotor"] = "HCPMMP1_premotor"
+areas["Dorsolateral prefrontal"] = "HCPMMP1_dlpfc"
+areas["Ventrolateral prefrontal"] = "HCPMMP1_frontal_inferior"
+areas["Orbital frontal polar"] = "HCPMMP1_frontal_orbital_polar"
 
 
 def ensure_iter(input):
