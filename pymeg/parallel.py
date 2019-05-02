@@ -138,13 +138,6 @@ def pmap(func, args, cluster='PBS', walltime=12, memory=10, logdir=None, tmpdir=
          name=None, nodes=1, tasks=1, verbose=True, env=None, email=None,
          ssh_to='node028', home=None, check_store=True, dry_run=False):
 
-    if check_store:
-        try:
-            if func.cached(*args):
-                return '%s -> %s is already in store' % (str(func), str(args))
-        except ValueError:
-            pass
-
     from os.path import expanduser, join
     if type(walltime) == type(int):
         walltime = '%i:00:00'
@@ -162,6 +155,12 @@ def pmap(func, args, cluster='PBS', walltime=12, memory=10, logdir=None, tmpdir=
         mkdir_p(tmpdir)
     out = []
     for arg in args:
+        if check_store:
+            try:
+                if func.in_store(*arg):
+                    return '%s -> %s is already in store' % (str(func), str(args))
+            except AttributeError:
+                pass
         script = 'ipython ' + to_script(func, tmpdir, *arg)
         pid = script
         if verbose:
