@@ -1,5 +1,5 @@
 '''
-%% TRIGGERS
+TRIGGERS
 
 trigger.address      = hex2dec('378');
 trigger.zero         = 0;
@@ -39,8 +39,21 @@ savepath = '/home/nwilming/seqconf'
 
 recording = namedtuple('Recording', ["filename", "subject", "session", "block"])
 recordings = [
+  #warning, pilots have mistake in triggers triggers
+  #recording('Pilot01-1_Seqconf_20190123_01.ds', 1, 1, [1,2,3,4]),
+  #recording('Pilot01-1_Seqconf_20190123_02.ds', 1, 1, [5,6,7,8]),
+  #recording('Pilot01-2_Seqconf_20190124_01.ds', 1, 2, [1,2,3,4]),
+  #recording('Pilot01-2_Seqconf_20190124_02.ds', 1, 2, [5,6,7,8]),
+  #recording('Pilot02-1_Seqconf_20190123_01.ds', 1, 1, [1,2,3,4]),
+  ###recording('Pilot02-1_Seqconf_20190123_02.ds', 1, 1, [5,6,7,8]), #empty recording
+  #recording('Pilot02-1_Seqconf_20190123_03.ds', 1, 1, [5,6,7,8]),
+  #recording('Pilot02-2_Seqconf_20190124_01.ds', 1, 2, [1,2,3,4]),
+  #recording('Pilot02-2_Seqconf_20190124_02.ds', 1, 2, [5,6,7,8]),
+    
   recording('S3-1_Seqconf_20190323_01.ds', 3, 1, [1,2,3,4]),
   recording('S3-1_Seqconf_20190323_02.ds', 3, 1, [5,6,7,8]),
+  recording('S3-2_Seqconf_20190324_01.ds', 3, 2, [1,2,3,4]),
+  recording('S3-2_Seqconf_20190324_02.ds', 3, 2, [5,6,7,8]), 
   recording('S04-1_Seqconf_20190312_01.ds', 4, 1, [1,2,3,4]),
   recording('S04-1_Seqconf_20190312_02.ds', 4, 1, [5,6,7,8]),
   recording('S04-2_Seqconf_20190317_01.ds', 4, 2, [1,2,3,4]),
@@ -51,22 +64,47 @@ recordings = [
   recording('S05-1_Seqconf_20190316_05.ds', 5, 1, [7,8]),
   recording('S05-2_Seqconf_20190317_01.ds', 5, 2, [1,2,3,4]),
   recording('S05-2_Seqconf_20190317_02.ds', 5, 2, [5,6,7,8]),
-  recording('S06-1_Seqconf_20190316_02.ds', 6, 1, [1,2,3,4]),
-  recording('S06-1_Seqconf_20190316_01.ds', 6, 2, [5,6,7,8]),
-  recording('S06-2_Seqconf_20190317_01.ds', 6, 1, [1,2,3,4]),
+  recording('S06-1_Seqconf_20190316_01.ds', 6, 1, [1,2,3,4]),
+  recording('S06-1_Seqconf_20190316_02.ds', 6, 1, [5,6,7,8]),
+  recording('S06-2_Seqconf_20190317_01.ds', 6, 2, [1,2,3,4]),
   recording('S06-2_Seqconf_20190317_02.ds', 6, 2, [5,6,7,8]),
   recording('S07-1_Seqconf_20190321_01.ds', 7, 1, [1,2,3,4]),
   recording('S07-1_Seqconf_20190321_02.ds', 7, 1, [5,6,7, 8]),
-  recording('S08-1_Seqconf_20190321_01.ds', 8, 1, [1,2,3,4]),
+  recording('S07-2_Seqconf_20190326_01.ds', 7, 2, [9,10,11]),
+  recording('S07-2_Seqconf_20190326_02.ds', 7, 2, [5,6,7,8]),  
+  recording('S08-1_Seqconf_20190321_01.ds', 8, 1, [9,10]),
   recording('S08-1_Seqconf_20190321_02.ds', 8, 1, [5,6,7,8]),
+  recording('S08-2_Seqconf_20190326_01.ds', 8, 2, [1,2,3,4]),
+  recording('S08-2_Seqconf_20190326_02.ds', 8, 2, [5,6,7,8]),
   recording('S09-1_Seqconf_20190323_01.ds', 9, 1, [1,2,3,4]),
   recording('S09-1_Seqconf_20190323_02.ds', 9, 1, [5,6,7,8]),
+  recording('S09-2_Seqconf_20190328_01.ds', 9, 2, [1,2,3,4]),
+  recording('S09-2_Seqconf_20190328_02.ds', 9, 2, [5,6,7,8]),
+  recording('S10-1_Seqconf_20190327_01.ds', 10, 1, [1,2,3,4]),
+  recording('S10-1_Seqconf_20190327_02.ds', 10, 1, [5,6,7,8]),
+  recording('S10-2_Seqconf_20190328_01.ds', 10, 2, [1,2,3,4]),
+  recording('S10-2_Seqconf_20190328_02.ds', 10, 2, [5,6,7,8]),
   recording('S11-1_Seqconf_20190321_01.ds', 11, 1, [1,2,3,4]),
   recording('S11-1_Seqconf_20190321_02.ds', 11, 1, [5,6,7,8]),
+  recording('S11-2_Seqconf_20190327_01.ds', 11, 2, [1,2,3,4]),
+  recording('S11-2_Seqconf_20190327_02.ds', 11, 2, [5,6,7,8]),
   recording('S12-1_Seqconf_20190323_01.ds', 12, 1, [1,2,3,4]),
   recording('S12-1_Seqconf_20190323_02.ds', 12, 1, [5,6,7,8]),
+  recording('S12-2_Seqconf_20190324_01.ds', 12, 2, [1,2,3,4]),
+  recording('S12-2_Seqconf_20190324_02.ds', 12, 2, [5,6,7,8]),
+  recording('S12-2_Seqconf_20190324_03.ds', 12, 2, [9,10]),
+  recording('S13-1_Seqconf_20190324_01.ds', 13, 1, [1,2,3,4]),
+  recording('S13-1_Seqconf_20190324_02.ds', 13, 1, [5,6,7,8]),
+  recording('S13-2_Seqconf_20190326_01.ds', 13, 2, [1,2,3,4]),
+  recording('S13-2_Seqconf_20190326_02.ds', 13, 2, [5,6,7,8]),  
   recording('S14-1_Seqconf_20190323_01.ds', 14, 1, [1,2,3,4]),
   recording('S14-1_Seqconf_20190323_02.ds', 14, 1, [5,6,7,8]),
+  recording('S14-2_Seqconf_20190324_01.ds', 14, 2, [1,2,3,4]),
+  recording('S14-2_Seqconf_20190324_02.ds', 14, 2, [5,6,7,8]),
+  recording('S15-1_Seqconf_20190327_01.ds', 15, 1, [1,2,3,4]),
+  recording('S15-1_Seqconf_20190327_02.ds', 15, 1, [5,6,7,8]),
+  recording('S15-2_Seqconf_20190328_01.ds', 15, 2, [1,2,3,4]),
+  recording('S15-2_Seqconf_20190328_02.ds', 15, 2, [5,6,7,8]),
 ]
 
 
@@ -111,28 +149,20 @@ def get_hash(subject, session, block, trial):
   return trial + 120*(block-1) + (120*8*(session-1)) + (1920*(subject-1))
 
 
-def to_blocks(timing, sfreq=1200., min_dur=0, max_dur=1200):
-    '''
-    Find breaks to cut data into pieces.
+def get_blocks(raw):
 
-    Returns a dictionary ob blocks with a namedtuple that
-    defines start and end of a block. Start and endpoint
-    are inclusive (!).    
-    '''
+    meta, timing = get_meta(raw, mapping, {}, 41, 41)
+    #meta.loc[:, 'hash'] = np.arange(len(meta))
+    #meta.loc[:, 'timing'] = np.arange(len(meta))
+    return blocks_from_marker(raw)
     
-    onsets = (timing.values - timing.values[0]) / sfreq / 60
-    diffs = np.diff(onsets)
-    id_break = np.where(diffs > 1)[0]
-    bounds = [-1] + list(id_break) + [len(timing) - 1]
-    Block = namedtuple('Block', ['start', 'end', 'start_trial', 'end_trial'])
-    blocks = {block: Block(timing.iloc[start + 1], timing.iloc[end],
-                           start + 1, end) for block, (start, end)
-              in enumerate(zip(bounds[:-1], bounds[1:]))}
-    for block in blocks.values():
-        dur = (onsets[block.end_trial] - onsets[block.start_trial])
-        assert(min_dur < dur)
-        assert(dur < max_dur)
-    return blocks
+def get_preprocessed_block(raw, block):
+    start, end = block.start*60, block.end*60 # To seconds
+    r = raw.copy().crop(start, end)
+    print('Processing ',r)
+    block_meta, block_timing = get_meta(r, mapping, {}, 41, 41)
+    r, ants, artdef = preprocess_block(r)
+    return r, ants, artdef
 
 def blocks_from_marker(raw, sfreq=1200.):
     '''
@@ -164,21 +194,12 @@ def filenames(subject, epoch, session, block):
 def preprocess_raw(recording):
     raw = mne.io.ctf.read_raw_ctf(
         join(inpath, recording.filename))
-
-    meta, timing = get_meta(raw, mapping, {}, 41, 41)
-    #meta.loc[:, 'hash'] = np.arange(len(meta))
-    #meta.loc[:, 'timing'] = np.arange(len(meta))
-    blocks = blocks_from_marker(raw)
-    
+    blocks = get_blocks(raw)
     min_start, max_end = np.min(raw.times), np.max(raw.times)
 
     for i, block in blocks.items():
         # Cut into blocks        
-        start, end = block.start*60, block.end*60 # To seconds
-        r = raw.copy().crop(start, end)
-        print('Processing ',r)
-        block_meta, block_timing = get_meta(r, mapping, {}, 41, 41)
-        r, ants, artdef = preprocess_block(r)
+
         print('Notch filtering')
         midx = np.where([x.startswith('M') for x in r.ch_names])[0]
         r.load_data()

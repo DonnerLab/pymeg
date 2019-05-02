@@ -152,16 +152,31 @@ def plot_streams_fig(
 
 
 def plot_tfr_selected_rois(
-    contrast_name, tfrs, layout, conf=None, cluster_correct=False, cmap=None, vmin=-25, vmax=25
+    contrast_name, tfrs, layout, conf=None, cluster_correct=False, cmap=None, 
+    vmin=-25, vmax=25, gs=None
 ):
     nr_cols = np.max([p.location[0] for p in layout]) + 1
-    fig = plt.figure(figsize=(nr_cols * 1.5, 3.5))
+    if gs is None:
+        fig = plt.figure(figsize=(nr_cols * 1.5, 3.5))
+    else:
+        fig = plt.gcf()
     ratio = (np.diff(conf.time_windows['response'])[0] / np.diff(conf.time_windows['stimulus'])[0]) 
-        
-    gs = matplotlib.gridspec.GridSpec(
-        4, (nr_cols * 3), width_ratios=list(np.tile([1, ratio, 0.1], nr_cols))
-    )
     
+    if gs is None:
+        gs = matplotlib.gridspec.GridSpec(
+            4, 
+            (nr_cols * 3), 
+            width_ratios=list(np.tile([1, ratio, 0.1], nr_cols))
+        )
+        gs.update(wspace=0.05, hspace=0.5)
+    else:
+        gs = matplotlib.gridspec.GridSpecFromSubplotSpec(
+            4, 
+            (nr_cols * 3), 
+            width_ratios=list(np.tile([1, ratio, 0.1], nr_cols)), 
+            subplot_spec=gs,
+            wspace=0.05, hspace=0.5)
+
     for P in layout:
         for j, timelock in enumerate(["stimulus", "response"]):
             cluster = P.cluster
@@ -215,7 +230,7 @@ def plot_tfr_selected_rois(
                 ax.set_xlabel('')
             if j == 0:
                 plt.title(cluster_name, {"fontsize": 8})
-    gs.update(wspace=0.05, hspace=0.5)
+   
     sns.despine()
     return fig
 
