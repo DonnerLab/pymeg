@@ -194,7 +194,12 @@ def _hdf2agg(filename, hemi=None, cluster=None, freq=None):
                     if freq is not None and not (str(freq) == fF):
                         continue
                     dfs.append(get_df_from_hdf(Fd))
-
+        if len(dfs) == 0:
+            s = """Did not find the requested data (h=%s, c=%s, f=%s). 
+The following hemis are saved: %s
+The following clusters are saved: %s
+"""%(hemi, cluster, freq, list(store.keys()), list(hd.keys()))
+            raise RuntimeError(s)
     return pd.concat(dfs)
 
 
