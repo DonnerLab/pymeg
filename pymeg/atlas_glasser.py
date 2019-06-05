@@ -163,7 +163,10 @@ def get_hcp_labels(subjects_dir, subjects):
 
 def get_JWDG_labels(subject, subjects_dir):
     import glob
-
+    import subprocess
+    import os
+    env = {k:v for k,v in os.environ.items()}
+    env['SUBJECTS_DIR'] = subjects_dir
     lh_labels = glob.glob(os.path.join(subjects_dir, "fsaverage", "label", "lh.JWDG*"))
     rh_labels = glob.glob(os.path.join(subjects_dir, "fsaverage", "label", "rh.JWDG*"))
 
@@ -186,7 +189,38 @@ def get_JWDG_labels(subject, subjects_dir):
                 label=label, subject=subject, base_name=label.split("/")[-1], hemi=hemi
             )
             print(align_command)
-            os.system(align_command)
+            subprocess.run(align_command, shell=True, env=env)
+
+def get_wang_labels(subject, subjects_dir):
+    import glob
+    import subprocess
+    import os
+    env = {k:v for k,v in os.environ.items()}
+    env['SUBJECTS_DIR'] = subjects_dir
+    lh_labels = glob.glob(os.path.join(subjects_dir, "fsaverage", "label", "lh.wang2015atlas*"))
+    rh_labels = glob.glob(os.path.join(subjects_dir, "fsaverage", "label", "rh.wang2015atlas*"))
+
+    mni_reg_file = os.path.join(
+        subjects_dir, subject, "mri", "transforms", "reg.mni152.2mm.lta"
+    )
+    if not os.path.isfile(mni_reg_file):
+        print("Doing mni152reg")
+        os.system("mni152reg --s %s" % subject)
+
+    for hemi, labels in zip(["lh", "rh"], [lh_labels, rh_labels]):
+        for label in labels:
+            align_command = "mri_label2label \
+                 --srclabel {label} \
+                 --srcsubject fsaverage \
+                 --trgsubject {subject} \
+                 --regmethod surface \
+                 --trglabel {base_name} \
+                 --hemi {hemi}".format(
+                label=label, subject=subject, base_name=label.split("/")[-1], hemi=hemi
+            )
+            print(align_command)
+            subprocess.run(align_command, shell=True, env=env)
+
 
 
 def get_clusters():
