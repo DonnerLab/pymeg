@@ -29,14 +29,16 @@ def check_bems(subjects):
 
 
 @memory.cache
-def get_source_space(subject):
+def get_source_space(subject, sdir=None):
     """Return source space.
 
     Mainly a helper function to provide caching of source space
     computation.
     """
+    if sdir is None:
+        sdir = subjects_dir
     return mne.setup_source_space(subject, spacing='oct6',
-                                  subjects_dir=subjects_dir,
+                                  subjects_dir=sdir,
                                   add_dist=False)
 
 
@@ -61,7 +63,9 @@ def get_info(raw_filename, epochs_filename):
 
 @memory.cache
 def get_leadfield(subject, raw_filename, epochs_filename, trans_filename,
-                  conductivity=(0.3, 0.006, 0.3), njobs=4, bem_sub_path='bem'):
+                  conductivity=(0.3, 0.006, 0.3), njobs=4, 
+                  bem_sub_path='bem', 
+                  sdir=None):
     """Compute leadfield with presets for this subject
 
     Args:    
@@ -86,12 +90,15 @@ def get_leadfield(subject, raw_filename, epochs_filename, trans_filename,
     Returns:   
         Tuple of (forward model, BEM model, source space)
     """
-    src = get_source_space(subject)
+    if sdir is None:
+        sdir = subjects_dir
+
+    src = get_source_space(subject, sdir=sdir)
     model = make_bem_model(
         subject=subject,
         ico=None,
         conductivity=conductivity,
-        subjects_dir=subjects_dir,
+        subjects_dir=sdir,
         bem_sub_path=bem_sub_path)
     bem = mne.make_bem_solution(model)
     info = get_info(raw_filename, epochs_filename)
@@ -267,14 +274,15 @@ def get_trans_epoch(raw_filename, epoch_filename):
     return save_file
 
 
-def make_trans(subject, raw_filename, epoch_filename, trans_name, sdir=None):
+def make_trans(subject, raw_filename, epoch_filename, trans_name, sdir=None, fid_epochs=None):
     """Create coregistration between MRI and MEG space.
 
     Call MNE gui to create a MEG<>MRI transformation matrix
     """
     import os
     import time
-    fid_epochs = get_trans_epoch(raw_filename, epoch_filename)
+    if fid_epochs is None:
+        fid_epochs = get_trans_epoch(raw_filename, epoch_filename)
     # cmd = 'mne coreg --high-res-head -d %s -s %s -f %s' % (
     #    subjects_dir, subject, fid_epochs)
     # print(cmd)
