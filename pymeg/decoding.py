@@ -93,6 +93,13 @@ class Decoder(object):
                 Needs to match first dim of data
             roi: str
                 Name of the roi that this comes from
+            average_vertices: False or int
+                Average vertices per hemisphere?
+                If not false must be index 
+                array to indicate which vertices belong 
+                to which hemisphere.
+            use_phase: bool
+                Include phase as feature?
         Returns:
             A pandas DataFrame that contains decoding accuracies
         """
@@ -104,23 +111,22 @@ class Decoder(object):
         scores = []
 
         for idx_t, tp in enumerate(time):
-            #if ((0 < tp) and (tp <= 0.025)) or ((tp > 1.39) and (tp <= 1.41)):
-            print(idx_t)
             if use_phase:
                 d = data[:, :, :, idx_t].copy()
                 phase = np.angle(d)
                 del d
                 if average_vertices:
+                    
                     phase = np.stack(
-                            (phase[:, :, :55].mean(2),
-                             phase[:, :, 55:].mean(2)),
+                            (phase[:, :, average_vertices].mean(2),
+                             phase[:, :, ~average_vertices].mean(2)),
                             2
                         )                                    
             power = ((data[:, :, :, idx_t] * data[:, :, :, idx_t].conj()).real)
             if average_vertices:                        
                 power = np.stack(
-                            (power[:, :, :55].mean(2),
-                             power[:, :, 55:].mean(2)),
+                            (power[:, :, average_vertices].mean(2),
+                             power[:, :, ~average_vertices].mean(2)),
                             2
                         )   
             # Build prediction matrix:
@@ -142,8 +148,7 @@ class Decoder(object):
                        ("Scaling", StandardScaler()),
                        ("PCA", PCA(n_components=0.95, svd_solver='full')),
                        ("Upsampler", RandomOverSampler(sampling_strategy="minority")),
-                       ("FeatureSelection", SelectFromModel(svm.LinearSVC(C=C, penalty="l1", dual=False, max_iter=50000))),
-                       #("FeatureSelection", SelectKBest(k=2*56)),
+                       ("FeatureSelection", SelectFromModel(svm.LinearSVC(C=C, penalty="l1", dual=False, max_iter=50000))),                       
                        ("SVClin", svm.LinearSVC(max_iter=5000, dual=False, penalty="l2", C=1/2)),                   
                     ]
                 )
@@ -226,7 +231,7 @@ def multi_apply_lcmv(tfrdata, times, filters, tfr_params, max_ori_out="signed"):
         info = epochs.info
 
         epochs, tfrtimes, est_val, est_key = complex_tfr(
-            epochs._data, times, **tfr_params
+            epochs._data[:,:,:], times, **tfr_params
         )
 
         nfreqs = epochs.shape[2]
